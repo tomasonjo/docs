@@ -596,27 +596,8 @@ You only need to **provide the checkpointer when compiling the parent graph**. L
 ```python
 from langgraph.graph import START, StateGraph
 from langgraph.checkpoint.memory import MemorySaver
-from typing_extensions import TypedDict
 
-class State(TypedDict):
-    foo: str
-
-# Subgraph
-
-def subgraph_node_1(state: State):
-    return {"foo": state["foo"] + "bar"}
-
-subgraph_builder = StateGraph(State)
-subgraph_builder.add_node(subgraph_node_1)
-subgraph_builder.add_edge(START, "subgraph_node_1")
-subgraph = subgraph_builder.compile()
-
-# Parent graph
-
-builder = StateGraph(State)
-builder.add_node("node_1", subgraph)
-builder.add_edge(START, "node_1")
-
+# Parent graph gets the checkpointer
 checkpointer = MemorySaver()
 graph = builder.compile(checkpointer=checkpointer)
 ```
@@ -624,151 +605,65 @@ graph = builder.compile(checkpointer=checkpointer)
 
 :::js
 ```typescript
-import { StateGraph, START, MemorySaver } from "@langchain/langgraph";
-import * as z from "zod";
+import { StateGraph, MemorySaver } from "@langchain/langgraph";
 
-const State = z.object({
-  foo: z.string(),
-});
-
-// Subgraph
-const subgraphBuilder = new StateGraph(State)
-  .addNode("subgraphNode1", (state) => {
-    return { foo: state.foo + "bar" };
-  })
-  .addEdge(START, "subgraphNode1");
-
-const subgraph = subgraphBuilder.compile();
-
-// Parent graph
-const builder = new StateGraph(State)
-  .addNode("node1", subgraph)
-  .addEdge(START, "node1");
-
+// Parent graph gets the checkpointer
 const checkpointer = new MemorySaver();
 const graph = builder.compile({ checkpointer });
 ```
 :::
 
-If you want the subgraph to **have its own memory**, you can compile it with the appropriate checkpointer option. This is useful in [multi-agent](/oss/langchain/multi-agent) systems, if you want agents to keep track of their internal message histories:
+The behavior of subgraph checkpointing depends on how you compile the subgraph:
+
+- **`checkpointer=None`** (default) - Subgraph state resets on every invocation
+- **`checkpointer=True`** - Subgraph state persists across invocations (useful for multi-agent systems)
+- **`checkpointer=InMemorySaver()`** - Subgraph uses a separate checkpointer
+
+This is critical for [multi-agent systems](/oss/langchain/multi-agent) where you want agents to maintain their own conversation histories.
+
+<Tip>
+Understanding when to use each option is important to avoid unexpected behavior. For detailed explanations, examples, and guidance on when to use each option, see the [Checkpointers in subgraphs](/oss/langgraph/add-memory#checkpointers-in-subgraphs) section.
+</Tip>
+
+## View subgraph state
+
+When you enable [persistence](/oss/langgraph/persistence), you can access both parent and subgraph state.
+
+To view the subgraph state, use the `subgraphs` parameter:
 
 :::python
 ```python
-subgraph_builder = StateGraph(...)
-subgraph = subgraph_builder.compile(checkpointer=True)
+# Get state including subgraphs
+state = graph.get_state(config, subgraphs=True)
+
+# Access subgraph state from tasks
+for task in state.tasks:
+    if task.state:
+        print(f"Subgraph state: {task.state.values}")
 ```
 :::
 
 :::js
 ```typescript
-const subgraphBuilder = new StateGraph(...)
-const subgraph = subgraphBuilder.compile({ checkpointer: true });
+// Get state including subgraphs
+const state = await graph.getState(config, { subgraphs: true });
+
+// Access subgraph state from tasks
+for (const task of state.tasks) {
+  if (task.state) {
+    console.log(`Subgraph state: ${task.state.values}`);
+  }
+}
 ```
 :::
 
-## View subgraph state
-
-When you enable [persistence](/oss/langgraph/persistence), you can [inspect the graph state](/oss/langgraph/persistence#checkpoints) (checkpoint) via the appropriate method. To view the subgraph state, you can use the subgraphs option.
-
-:::python
-You can inspect the graph state via `graph.get_state(config)`. To view the subgraph state, you can use `graph.get_state(config, subgraphs=True)`.
-:::
-
-:::js
-You can inspect the graph state via `graph.getState(config)`. To view the subgraph state, you can use `graph.getState(config, { subgraphs: true })`.
-:::
-
 <Warning>
-**Available **only** when interrupted**
 Subgraph state can only be viewed **when the subgraph is interrupted**. Once you resume the graph, you won't be able to access the subgraph state.
 </Warning>
 
-<Accordion title="View interrupted subgraph state">
-  :::python
-  ```python
-  from langgraph.graph import START, StateGraph
-  from langgraph.checkpoint.memory import MemorySaver
-  from langgraph.types import interrupt, Command
-  from typing_extensions import TypedDict
-
-  class State(TypedDict):
-      foo: str
-
-  # Subgraph
-
-  def subgraph_node_1(state: State):
-      value = interrupt("Provide value:")
-      return {"foo": state["foo"] + value}
-
-  subgraph_builder = StateGraph(State)
-  subgraph_builder.add_node(subgraph_node_1)
-  subgraph_builder.add_edge(START, "subgraph_node_1")
-
-  subgraph = subgraph_builder.compile()
-
-  # Parent graph
-
-  builder = StateGraph(State)
-  builder.add_node("node_1", subgraph)
-  builder.add_edge(START, "node_1")
-
-  checkpointer = MemorySaver()
-  graph = builder.compile(checkpointer=checkpointer)
-
-  config = {"configurable": {"thread_id": "1"}}
-
-  graph.invoke({"foo": ""}, config)
-  parent_state = graph.get_state(config)
-
-  # This will be available only when the subgraph is interrupted.
-  # Once you resume the graph, you won't be able to access the subgraph state.
-  subgraph_state = graph.get_state(config, subgraphs=True).tasks[0].state
-
-  # resume the subgraph
-  graph.invoke(Command(resume="bar"), config)
-  ```
-
-  1. This will be available only when the subgraph is interrupted. Once you resume the graph, you won't be able to access the subgraph state.
-  :::
-
-  :::js
-  ```typescript
-  import { StateGraph, START, MemorySaver, interrupt, Command } from "@langchain/langgraph";
-  import * as z from "zod";
-
-  const State = z.object({
-    foo: z.string(),
-  });
-
-  // Subgraph
-  const subgraphBuilder = new StateGraph(State)
-    .addNode("subgraphNode1", (state) => {
-      const value = interrupt("Provide value:");
-      return { foo: state.foo + value };
-    })
-    .addEdge(START, "subgraphNode1");
-
-  const subgraph = subgraphBuilder.compile();
-
-  // Parent graph
-  const builder = new StateGraph(State)
-    .addNode("node1", subgraph)
-    .addEdge(START, "node1");
-
-  const checkpointer = new MemorySaver();
-  const graph = builder.compile({ checkpointer });
-
-  const config = { configurable: { thread_id: "1" } };
-
-  await graph.invoke({ foo: "" }, config);
-  const parentState = await graph.getState(config);
-  const subgraphState = (await graph.getState(config, { subgraphs: true })).tasks[0].state;   // [!code highlight]
-
-  // resume the subgraph
-  await graph.invoke(new Command({ resume: "bar" }), config);
-  ```
-  :::
-</Accordion>
+<Tip>
+For detailed information on accessing subgraph state and state history (including how to get historical subgraph checkpoints), see the [Access state and state history](/oss/langgraph/add-memory#access-state-and-state-history) section.
+</Tip>
 
 ## Stream subgraph outputs
 

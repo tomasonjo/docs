@@ -2,30 +2,38 @@
 title: Memory
 ---
 
-
-
 AI applications need [memory](/oss/concepts/memory) to share context across multiple interactions. In LangGraph, you can add two types of memory:
 
-* [Add short-term memory](#add-short-term-memory) as a part of your agent's [state](/oss/langgraph/graph-api#state) to enable multi-turn conversations.
-* [Add long-term memory](#add-long-term-memory) to store user-specific or application-level data across sessions.
+* [**Checkpointers**](#checkpointers) - Thread-scoped persistence for multi-turn conversations and workflow state.
+* [**Stores**](#stores) - Cross-thread persistence for user-specific or application-level data.
 
-## Add short-term memory
+---
 
-**Short-term** memory (thread-level [persistence](/oss/langgraph/persistence)) enables agents to track multi-turn conversations. To add short-term memory:
+## Checkpointers
+
+Checkpointers provide thread-level [persistence](/oss/langgraph/persistence), enabling your graph to:
+- Track multi-turn conversations
+- Resume after interruptions or failures ([durable execution](/oss/langgraph/durable-execution))
+- Access historical states for debugging and [time travel](/oss/langgraph/use-time-travel)
+- Enable [human-in-the-loop](/oss/langgraph/interrupts) workflows
+
+### Add checkpointers
+
+To add checkpointers to your graph:
 
 :::python
 ```python
-from langgraph.checkpoint.memory import InMemorySaver  # [!code highlight]
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import StateGraph
 
-checkpointer = InMemorySaver()  # [!code highlight]
+checkpointer = InMemorySaver()
 
 builder = StateGraph(...)
-graph = builder.compile(checkpointer=checkpointer)  # [!code highlight]
+graph = builder.compile(checkpointer=checkpointer)
 
 graph.invoke(
     {"messages": [{"role": "user", "content": "hi! i am Bob"}]},
-    {"configurable": {"thread_id": "1"}},  # [!code highlight]
+    {"configurable": {"thread_id": "1"}},
 )
 ```
 :::
@@ -46,7 +54,13 @@ await graph.invoke(
 ```
 :::
 
-### Use in production
+<Info>
+**What is a thread?**
+
+A thread is a unique conversation or workflow session identified by a `thread_id`. When you invoke your graph with a specific `thread_id`, LangGraph saves checkpoints (snapshots of the graph state) to that thread. All subsequent invocations with the same `thread_id` can access and continue from the saved state.
+</Info>
+
+#### Use in production
 
 In production, use a checkpointer backed by a database:
 
@@ -55,9 +69,9 @@ In production, use a checkpointer backed by a database:
 from langgraph.checkpoint.postgres import PostgresSaver
 
 DB_URI = "postgresql://postgres:postgres@localhost:5442/postgres?sslmode=disable"
-with PostgresSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight]
+with PostgresSaver.from_conn_string(DB_URI) as checkpointer:
     builder = StateGraph(...)
-    graph = builder.compile(checkpointer=checkpointer)  # [!code highlight]
+    graph = builder.compile(checkpointer=checkpointer)
 ```
 :::
 
@@ -88,12 +102,12 @@ const graph = builder.compile({ checkpointer });
       ```python
       from langchain.chat_models import init_chat_model
       from langgraph.graph import StateGraph, MessagesState, START
-      from langgraph.checkpoint.postgres import PostgresSaver  # [!code highlight]
+      from langgraph.checkpoint.postgres import PostgresSaver
 
       model = init_chat_model(model="claude-haiku-4-5-20251001")
 
       DB_URI = "postgresql://postgres:postgres@localhost:5442/postgres?sslmode=disable"
-      with PostgresSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight]
+      with PostgresSaver.from_conn_string(DB_URI) as checkpointer:
           # checkpointer.setup()
 
           def call_model(state: MessagesState):
@@ -104,24 +118,24 @@ const graph = builder.compile({ checkpointer });
           builder.add_node(call_model)
           builder.add_edge(START, "call_model")
 
-          graph = builder.compile(checkpointer=checkpointer)  # [!code highlight]
+          graph = builder.compile(checkpointer=checkpointer)
 
           config = {
               "configurable": {
-                  "thread_id": "1"  # [!code highlight]
+                  "thread_id": "1"
               }
           }
 
           for chunk in graph.stream(
               {"messages": [{"role": "user", "content": "hi! I'm bob"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values"
           ):
               chunk["messages"][-1].pretty_print()
 
           for chunk in graph.stream(
               {"messages": [{"role": "user", "content": "what's my name?"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values"
           ):
               chunk["messages"][-1].pretty_print()
@@ -131,12 +145,12 @@ const graph = builder.compile({ checkpointer });
       ```python
       from langchain.chat_models import init_chat_model
       from langgraph.graph import StateGraph, MessagesState, START
-      from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver  # [!code highlight]
+      from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
       model = init_chat_model(model="claude-haiku-4-5-20251001")
 
       DB_URI = "postgresql://postgres:postgres@localhost:5442/postgres?sslmode=disable"
-      async with AsyncPostgresSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight]
+      async with AsyncPostgresSaver.from_conn_string(DB_URI) as checkpointer:
           # await checkpointer.setup()
 
           async def call_model(state: MessagesState):
@@ -147,24 +161,24 @@ const graph = builder.compile({ checkpointer });
           builder.add_node(call_model)
           builder.add_edge(START, "call_model")
 
-          graph = builder.compile(checkpointer=checkpointer)  # [!code highlight]
+          graph = builder.compile(checkpointer=checkpointer)
 
           config = {
               "configurable": {
-                  "thread_id": "1"  # [!code highlight]
+                  "thread_id": "1"
               }
           }
 
           async for chunk in graph.astream(
               {"messages": [{"role": "user", "content": "hi! I'm bob"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values"
           ):
               chunk["messages"][-1].pretty_print()
 
           async for chunk in graph.astream(
               {"messages": [{"role": "user", "content": "what's my name?"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values"
           ):
               chunk["messages"][-1].pretty_print()
@@ -235,7 +249,7 @@ const graph = builder.compile({ checkpointer });
 </Accordion>
 
 :::python
-<Accordion title="Example: using [MongoDB](https://pypi.org/project/langgraph-checkpoint-mongodb/) checkpointer">
+<Accordion title="Example: using MongoDB checkpointer">
   ```
   pip install -U pymongo langgraph langgraph-checkpoint-mongodb
   ```
@@ -250,12 +264,12 @@ const graph = builder.compile({ checkpointer });
       ```python
       from langchain.chat_models import init_chat_model
       from langgraph.graph import StateGraph, MessagesState, START
-      from langgraph.checkpoint.mongodb import MongoDBSaver  # [!code highlight]
+      from langgraph.checkpoint.mongodb import MongoDBSaver
 
       model = init_chat_model(model="claude-haiku-4-5-20251001")
 
       DB_URI = "localhost:27017"
-      with MongoDBSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight]
+      with MongoDBSaver.from_conn_string(DB_URI) as checkpointer:
 
           def call_model(state: MessagesState):
               response = model.invoke(state["messages"])
@@ -265,24 +279,24 @@ const graph = builder.compile({ checkpointer });
           builder.add_node(call_model)
           builder.add_edge(START, "call_model")
 
-          graph = builder.compile(checkpointer=checkpointer)  # [!code highlight]
+          graph = builder.compile(checkpointer=checkpointer)
 
           config = {
               "configurable": {
-                  "thread_id": "1"  # [!code highlight]
+                  "thread_id": "1"
               }
           }
 
           for chunk in graph.stream(
               {"messages": [{"role": "user", "content": "hi! I'm bob"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values"
           ):
               chunk["messages"][-1].pretty_print()
 
           for chunk in graph.stream(
               {"messages": [{"role": "user", "content": "what's my name?"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values"
           ):
               chunk["messages"][-1].pretty_print()
@@ -292,12 +306,12 @@ const graph = builder.compile({ checkpointer });
       ```python
       from langchain.chat_models import init_chat_model
       from langgraph.graph import StateGraph, MessagesState, START
-      from langgraph.checkpoint.mongodb.aio import AsyncMongoDBSaver  # [!code highlight]
+      from langgraph.checkpoint.mongodb.aio import AsyncMongoDBSaver
 
       model = init_chat_model(model="claude-haiku-4-5-20251001")
 
       DB_URI = "localhost:27017"
-      async with AsyncMongoDBSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight]
+      async with AsyncMongoDBSaver.from_conn_string(DB_URI) as checkpointer:
 
           async def call_model(state: MessagesState):
               response = await model.ainvoke(state["messages"])
@@ -307,24 +321,24 @@ const graph = builder.compile({ checkpointer });
           builder.add_node(call_model)
           builder.add_edge(START, "call_model")
 
-          graph = builder.compile(checkpointer=checkpointer)  # [!code highlight]
+          graph = builder.compile(checkpointer=checkpointer)
 
           config = {
               "configurable": {
-                  "thread_id": "1"  # [!code highlight]
+                  "thread_id": "1"
               }
           }
 
           async for chunk in graph.astream(
               {"messages": [{"role": "user", "content": "hi! I'm bob"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values"
           ):
               chunk["messages"][-1].pretty_print()
 
           async for chunk in graph.astream(
               {"messages": [{"role": "user", "content": "what's my name?"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values"
           ):
               chunk["messages"][-1].pretty_print()
@@ -333,7 +347,7 @@ const graph = builder.compile({ checkpointer });
     </Tabs>
 </Accordion>
 
-<Accordion title="Example: using [Redis](https://pypi.org/project/langgraph-checkpoint-redis/) checkpointer">
+<Accordion title="Example: using Redis checkpointer">
   ```
   pip install -U langgraph langgraph-checkpoint-redis
   ```
@@ -347,12 +361,12 @@ const graph = builder.compile({ checkpointer });
       ```python
       from langchain.chat_models import init_chat_model
       from langgraph.graph import StateGraph, MessagesState, START
-      from langgraph.checkpoint.redis import RedisSaver  # [!code highlight]
+      from langgraph.checkpoint.redis import RedisSaver
 
       model = init_chat_model(model="claude-haiku-4-5-20251001")
 
       DB_URI = "redis://localhost:6379"
-      with RedisSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight]
+      with RedisSaver.from_conn_string(DB_URI) as checkpointer:
           # checkpointer.setup()
 
           def call_model(state: MessagesState):
@@ -363,24 +377,24 @@ const graph = builder.compile({ checkpointer });
           builder.add_node(call_model)
           builder.add_edge(START, "call_model")
 
-          graph = builder.compile(checkpointer=checkpointer)  # [!code highlight]
+          graph = builder.compile(checkpointer=checkpointer)
 
           config = {
               "configurable": {
-                  "thread_id": "1"  # [!code highlight]
+                  "thread_id": "1"
               }
           }
 
           for chunk in graph.stream(
               {"messages": [{"role": "user", "content": "hi! I'm bob"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values"
           ):
               chunk["messages"][-1].pretty_print()
 
           for chunk in graph.stream(
               {"messages": [{"role": "user", "content": "what's my name?"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values"
           ):
               chunk["messages"][-1].pretty_print()
@@ -390,12 +404,12 @@ const graph = builder.compile({ checkpointer });
       ```python
       from langchain.chat_models import init_chat_model
       from langgraph.graph import StateGraph, MessagesState, START
-      from langgraph.checkpoint.redis.aio import AsyncRedisSaver  # [!code highlight]
+      from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 
       model = init_chat_model(model="claude-haiku-4-5-20251001")
 
       DB_URI = "redis://localhost:6379"
-      async with AsyncRedisSaver.from_conn_string(DB_URI) as checkpointer:  # [!code highlight]
+      async with AsyncRedisSaver.from_conn_string(DB_URI) as checkpointer:
           # await checkpointer.asetup()
 
           async def call_model(state: MessagesState):
@@ -406,24 +420,24 @@ const graph = builder.compile({ checkpointer });
           builder.add_node(call_model)
           builder.add_edge(START, "call_model")
 
-          graph = builder.compile(checkpointer=checkpointer)  # [!code highlight]
+          graph = builder.compile(checkpointer=checkpointer)
 
           config = {
               "configurable": {
-                  "thread_id": "1"  # [!code highlight]
+                  "thread_id": "1"
               }
           }
 
           async for chunk in graph.astream(
               {"messages": [{"role": "user", "content": "hi! I'm bob"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values"
           ):
               chunk["messages"][-1].pretty_print()
 
           async for chunk in graph.astream(
               {"messages": [{"role": "user", "content": "what's my name?"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values"
           ):
               chunk["messages"][-1].pretty_print()
@@ -433,92 +447,1487 @@ const graph = builder.compile({ checkpointer });
 </Accordion>
 :::
 
-### Use in subgraphs
+### Checkpointers in subgraphs
 
-If your graph contains [subgraphs](/oss/langgraph/use-subgraphs), you only need to provide the checkpointer when compiling the parent graph. LangGraph will automatically propagate the checkpointer to the child subgraphs.
+When your graph contains [subgraphs](/oss/langgraph/use-subgraphs), understanding how checkpointing works is critical for building multi-agent systems and complex workflows. The behavior depends on which checkpointer option you use when compiling the subgraph.
+
+<Info>
+**LangGraph API handles subgraph checkpointing automatically**
+
+When using the LangGraph API, checkpointing is configured automatically for subgraphs. The information below is relevant when self-hosting or when you need to understand the behavior.
+</Info>
+
+#### Checkpointer options
+
+When compiling a subgraph, you can control how its state is persisted:
 
 :::python
 ```python
-from langgraph.graph import START, StateGraph
+# Option 1: No persistent state across invocations (default)
+subgraph = subgraph_builder.compile()
+
+# Option 2: Persistent state across invocations
+subgraph = subgraph_builder.compile(checkpointer=True)
+
+# Option 3: No checkpointing at all
+subgraph = subgraph_builder.compile(checkpointer=False)
+
+# Alternative: Use a separate checkpointer instance
 from langgraph.checkpoint.memory import InMemorySaver
-from typing import TypedDict
-
-class State(TypedDict):
-    foo: str
-
-# Subgraph
-
-def subgraph_node_1(state: State):
-    return {"foo": state["foo"] + "bar"}
-
-subgraph_builder = StateGraph(State)
-subgraph_builder.add_node(subgraph_node_1)
-subgraph_builder.add_edge(START, "subgraph_node_1")
-subgraph = subgraph_builder.compile()  # [!code highlight]
-
-# Parent graph
-
-builder = StateGraph(State)
-builder.add_node("node_1", subgraph)  # [!code highlight]
-builder.add_edge(START, "node_1")
-
-checkpointer = InMemorySaver()
-graph = builder.compile(checkpointer=checkpointer)  # [!code highlight]
+subgraph = subgraph_builder.compile(checkpointer=InMemorySaver())
 ```
 :::
 
 :::js
 ```typescript
-import { StateGraph, START, MemorySaver } from "@langchain/langgraph";
-import * as z from "zod";
-
-const State = z.object({ foo: z.string() });
-
-const subgraphBuilder = new StateGraph(State)
-  .addNode("subgraph_node_1", (state) => {
-    return { foo: state.foo + "bar" };
-  })
-  .addEdge(START, "subgraph_node_1");
+// Option 1: No persistent state across invocations (default)
 const subgraph = subgraphBuilder.compile();
 
-const builder = new StateGraph(State)
-  .addNode("node_1", subgraph)
-  .addEdge(START, "node_1");
+// Option 2: Persistent state across invocations
+const subgraph = subgraphBuilder.compile({ checkpointer: true });
 
-const checkpointer = new MemorySaver();
-const graph = builder.compile({ checkpointer });
+// Option 3: No checkpointing at all
+const subgraph = subgraphBuilder.compile({ checkpointer: false });
+
+// Alternative: Use a separate checkpointer instance
+import { MemorySaver } from "@langchain/langgraph";
+const subgraph = subgraphBuilder.compile({ checkpointer: new MemorySaver() });
 ```
 :::
 
-If you want the subgraph to have its own memory, you can compile it with the appropriate checkpointer option. This is useful in [multi-agent](/oss/langchain/multi-agent) systems, if you want agents to keep track of their internal message histories.
+The most common options are `checkpointer=None` (default) and `checkpointer=True`, which both use the parent's checkpointer but differ in how they namespace the subgraph's state. You can also pass any `BaseCheckpointSaver` instance to give the subgraph its own separate checkpointer, though the common practice for leveraging functionality like `interrupt()` in subgraphs is to use the parent's checkpointer with either `checkpointer=True` or the default `checkpointer=None`.
+
+<Tabs>
+  <Tab title="checkpointer=None (default)">
+    With the default option, the subgraph uses a dynamic namespace that changes with each invocation. This means the subgraph state resets between runs - each invocation starts with a clean slate. The state from each run is still stored and accessible by the parent graph, but the subgraph itself doesn't carry over state from previous invocations.
+
+    Use this when your subgraph acts as a reusable tool that may be called multiple times and each invocation should start fresh, such as a search tool or data processing pipeline.
+
+    :::python
+    ```python expandable
+    from langgraph.graph import StateGraph
+    from langgraph.checkpoint.memory import InMemorySaver
+    from typing_extensions import TypedDict
+    from typing import Annotated
+    import operator
+
+    checkpointer = InMemorySaver()
+
+    class State(TypedDict):
+        parent: Annotated[int, operator.add]
+
+    class SubgraphState(TypedDict):
+        subgraph: Annotated[int, operator.add]
+
+    def node_a(state: State):
+        return {"parent": 1}
+
+    def node_b(state: SubgraphState):
+        return {"subgraph": 1}
+
+    # Subgraph with checkpointer=None (default)
+    subgraph_builder = StateGraph(SubgraphState)
+    subgraph_builder.add_node("node_b", node_b)
+    subgraph_builder.set_entry_point("node_b")
+    subgraph = subgraph_builder.compile()  # checkpointer=None
+
+    # Parent graph
+    builder = StateGraph(State)
+    builder.add_node("node_a", node_a)
+    builder.add_node("subgraph", subgraph)
+    builder.set_entry_point("node_a")
+    builder.add_edge("node_a", "subgraph")
+    graph = builder.compile(checkpointer=checkpointer)
+
+    config = {"configurable": {"thread_id": "1"}}
+
+    # Run 1
+    for chunk in graph.stream({}, subgraphs=True, stream_mode="values", config=config):
+        print(chunk)
+    # Output:
+    # ((), {'parent': 1})
+    # (('subgraph:ac5cc169-30a2-7d6e-ae2a-00800959aeb8',), {'subgraph': 1})
+
+    # Run 2
+    for chunk in graph.stream({}, subgraphs=True, stream_mode="values", config=config):
+        print(chunk)
+    # Output:
+    # ((), {'parent': 2})  # parent accumulated
+    # (('subgraph:b84c6daf-b464-1756-8b39-30d38e101fcf',), {'subgraph': 1})  # subgraph reset
+    ```
+
+    Notice the subgraph namespace changes each run (`ac5cc169...` vs `b84c6daf...`), and `subgraph` value resets to `1` each time.
+    :::
+    :::js
+    ```typescript expandable
+    import { StateGraph, MemorySaver } from "@langchain/langgraph";
+    import { registry } from "@langchain/langgraph/zod";
+    import * as z from "zod";
+
+    const checkpointer = new MemorySaver();
+
+    const State = z.object({
+    parent: z.number().register(registry, {
+        reducer: { fn: (x, y) => x + y },
+        default: () => 0,
+    }),
+    });
+
+    const SubgraphState = z.object({
+    subgraph: z.number().register(registry, {
+        reducer: { fn: (x, y) => x + y },
+        default: () => 0,
+    }),
+    });
+
+    const nodeA = (state: z.infer<typeof State>) => ({ parent: 1 });
+    const nodeB = (state: z.infer<typeof SubgraphState>) => ({ subgraph: 1 });
+
+    // Subgraph without persistence
+    const subgraphBuilder = new StateGraph(SubgraphState)
+    .addNode("nodeB", nodeB)
+    .addEntrypoint("nodeB");
+    const subgraph = subgraphBuilder.compile();  // No checkpointer
+
+    // Parent graph
+    const builder = new StateGraph(State)
+    .addNode("nodeA", nodeA)
+    .addNode("subgraph", subgraph)
+    .addEntrypoint("nodeA")
+    .addEdge("nodeA", "subgraph");
+    const graph = builder.compile({ checkpointer });
+
+    const config = { configurable: { thread_id: "1" } };
+
+    // Run 1
+    for await (const chunk of await graph.stream({}, { ...config, subgraphs: true, streamMode: "values" })) {
+    console.log(chunk);
+    }
+    // Output:
+    // [[], { parent: 1 }]
+    // [['subgraph:ac5cc169-30a2-7d6e-ae2a-00800959aeb8'], { subgraph: 1 }]
+
+    // Run 2
+    for await (const chunk of await graph.stream({}, { ...config, subgraphs: true, streamMode: "values" })) {
+    console.log(chunk);
+    }
+    // Output:
+    // [[], { parent: 2 }]  // parent accumulated
+    // [['subgraph:b84c6daf-b464-1756-8b39-30d38e101fcf'], { subgraph: 1 }]  // subgraph reset
+    ```
+
+    Notice the subgraph namespace changes each run, and `subgraph` value resets to `1` each time.
+    :::
+  </Tab>
+
+  <Tab title="checkpointer=True">
+    When you use `checkpointer=True`, the subgraph uses a static namespace that stays the same across invocations. This means the subgraph state persists across runs within the same thread. The subgraph resumes from its last execution, replaying from the last stored checkpoint. Note that this is not time-linear - it replays from the last checkpoint in the namespace, regardless of when that execution occurred.
+
+    Use this for multi-agent systems where each agent should maintain its own conversation history, or when building workflows where subgraphs need to remember things across multiple invocations.
+
+    :::python
+    ```python expandable
+    from langgraph.graph import StateGraph
+    from langgraph.checkpoint.memory import InMemorySaver
+    from typing_extensions import TypedDict
+    from typing import Annotated
+    import operator
+
+    checkpointer = InMemorySaver()
+
+    class State(TypedDict):
+        parent: Annotated[int, operator.add]
+
+    class SubgraphState(TypedDict):
+        subgraph: Annotated[int, operator.add]
+
+    def node_a(state: State):
+        return {"parent": 1}
+
+    def node_b(state: SubgraphState):
+        return {"subgraph": 1}
+
+    # Subgraph with checkpointer=True
+    subgraph_builder = StateGraph(SubgraphState)
+    subgraph_builder.add_node("node_b", node_b)
+    subgraph_builder.set_entry_point("node_b")
+    subgraph = subgraph_builder.compile(checkpointer=True)  # State persists!
+
+    # Parent graph
+    builder = StateGraph(State)
+    builder.add_node("node_a", node_a)
+    builder.add_node("subgraph", subgraph)
+    builder.set_entry_point("node_a")
+    builder.add_edge("node_a", "subgraph")
+    graph = builder.compile(checkpointer=checkpointer)
+
+    config = {"configurable": {"thread_id": "1"}}
+
+    # Run 1
+    for chunk in graph.stream({}, subgraphs=True, stream_mode="values", config=config):
+        print(chunk)
+    # Output:
+    # ((), {'parent': 1})
+    # (('subgraph',), {'subgraph': 1})
+
+    # Run 2
+    for chunk in graph.stream({}, subgraphs=True, stream_mode="values", config=config):
+        print(chunk)
+    # Output:
+    # ((), {'parent': 2})  # parent accumulated
+    # (('subgraph',), {'subgraph': 2})  # subgraph accumulated!
+    ```
+
+    Notice the subgraph namespace stays stable (`'subgraph'`), and the `subgraph` value accumulates across runs (`1` → `2`).
+    :::
+    :::js
+    ```typescript expandable
+    import { StateGraph, MemorySaver } from "@langchain/langgraph";
+    import { registry } from "@langchain/langgraph/zod";
+    import * as z from "zod";
+
+    const checkpointer = new MemorySaver();
+
+    const State = z.object({
+    parent: z.number().register(registry, {
+        reducer: { fn: (x, y) => x + y },
+        default: () => 0,
+    }),
+    });
+
+    const SubgraphState = z.object({
+    subgraph: z.number().register(registry, {
+        reducer: { fn: (x, y) => x + y },
+        default: () => 0,
+    }),
+    });
+
+    const nodeA = (state: z.infer<typeof State>) => ({ parent: 1 });
+    const nodeB = (state: z.infer<typeof SubgraphState>) => ({ subgraph: 1 });
+
+    // Subgraph with persistent state
+    const subgraphBuilder = new StateGraph(SubgraphState)
+    .addNode("nodeB", nodeB)
+    .addEntrypoint("nodeB");
+    const subgraph = subgraphBuilder.compile({ checkpointer: true });  // State persists!
+
+    // Parent graph
+    const builder = new StateGraph(State)
+    .addNode("nodeA", nodeA)
+    .addNode("subgraph", subgraph)
+    .addEntrypoint("nodeA")
+    .addEdge("nodeA", "subgraph");
+    const graph = builder.compile({ checkpointer });
+
+    const config = { configurable: { thread_id: "1" } };
+
+    // Run 1
+    for await (const chunk of await graph.stream({}, { ...config, subgraphs: true, streamMode: "values" })) {
+    console.log(chunk);
+    }
+    // Output:
+    // [[], { parent: 1 }]
+    // [['subgraph'], { subgraph: 1 }]
+
+    // Run 2
+    for await (const chunk of await graph.stream({}, { ...config, subgraphs: true, streamMode: "values" })) {
+    console.log(chunk);
+    }
+    // Output:
+    // [[], { parent: 2 }]  // parent accumulated
+    // [['subgraph'], { subgraph: 2 }]  // subgraph accumulated!
+    ```
+
+    Notice the subgraph namespace stays stable, and the `subgraph` value accumulates across runs.
+    :::
+  </Tab>
+
+  <Tab title="checkpointer=False">
+    When you use `checkpointer=False`, the subgraph does not use checkpointing at all. No state is saved anywhere, even if the parent graph has a checkpointer configured.
+
+    Use this when the subgraph is purely stateless and you want to avoid any persistence overhead.
+  </Tab>
+</Tabs>
+
+<Tip>
+If your subgraph is used like a function that might be called multiple times (e.g., a tool in a ReAct agent), use `checkpointer=None`. If your subgraph represents an entity with its own memory (e.g., an agent with conversation history), use `checkpointer=True`.
+</Tip>
+
+### Access state
+
+With checkpointing enabled, you can access the current state, historical states, and subgraph states.
+
+#### Get current state
+
+You can retrieve the current state of your graph at any time, including the state values and the next nodes that will execute.
 
 :::python
 ```python
-subgraph_builder = StateGraph(...)
-subgraph = subgraph_builder.compile(checkpointer=True)  # [!code highlight]
+config = {"configurable": {"thread_id": "1"}}
+state = graph.get_state(config)
+
+print(state.values)  # Current state values
+print(state.next)    # Next nodes to execute
 ```
 :::
 
 :::js
 ```typescript
-const subgraphBuilder = new StateGraph(...);
-const subgraph = subgraphBuilder.compile({ checkpointer: true });  // [!code highlight]
+const config = { configurable: { thread_id: "1" } };
+const state = await graph.getState(config);
+
+console.log(state.values);  // Current state values
+console.log(state.next);    // Next nodes to execute
 ```
 :::
 
-## Add long-term memory
+#### Get state history
 
-Use long-term memory to store user-specific or application-specific data across conversations.
+You can access the full execution history for a thread to see how the state evolved over time. The history is ordered chronologically from most recent to oldest.
 
 :::python
 ```python
-from langgraph.store.memory import InMemoryStore  # [!code highlight]
+config = {"configurable": {"thread_id": "1"}}
+history = list(graph.get_state_history(config))
+
+# History is ordered from most recent to oldest
+for state in history:
+    print(f"Step: {state.metadata['step']}, Values: {state.values}")
+```
+:::
+
+:::js
+```typescript
+const config = { configurable: { thread_id: "1" } };
+const history = [];
+for await (const state of graph.getStateHistory(config)) {
+  history.push(state);
+}
+
+// History is ordered from most recent to oldest
+for (const state of history) {
+  console.log(`Step: ${state.metadata.step}, Values: ${state.values}`);
+}
+```
+:::
+
+<Accordion title="View full state snapshot structure">
+  :::python
+  ```python
+  StateSnapshot(
+      values={'messages': [HumanMessage(content="hi! I'm bob"), AIMessage(content='Hi Bob!')]},
+      next=(),
+      config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1ef663ba-28fe-6528-8002-5a559208592c'}},
+      metadata={'source': 'loop', 'writes': {'call_model': {'messages': AIMessage(content='Hi Bob!')}}, 'step': 2},
+      created_at='2024-08-29T19:19:38.821749+00:00',
+      parent_config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1ef663ba-28f9-6ec4-8001-31981c2c39f8'}},
+      tasks=()
+  )
+  ```
+  :::
+
+  :::js
+  ```javascript
+  {
+    values: { messages: [HumanMessage(...), AIMessage(...)] },
+    next: [],
+    config: {
+      configurable: {
+        thread_id: '1',
+        checkpoint_ns: '',
+        checkpoint_id: '1ef663ba-28fe-6528-8002-5a559208592c'
+      }
+    },
+    metadata: {
+      source: 'loop',
+      writes: { call_model: { messages: AIMessage(...) } },
+      step: 2
+    },
+    createdAt: '2024-08-29T19:19:38.821749+00:00',
+    parentConfig: {
+      configurable: {
+        thread_id: '1',
+        checkpoint_ns: '',
+        checkpoint_id: '1ef663ba-28f9-6ec4-8001-31981c2c39f8'
+      }
+    },
+    tasks: []
+  }
+  ```
+  :::
+</Accordion>
+
+#### Get subgraph state
+
+To access subgraph state, use `subgraphs=True`:
+
+:::python
+```python
+config = {"configurable": {"thread_id": "1"}}
+state = graph.get_state(config, subgraphs=True)
+
+# Access subgraph state from tasks
+for task in state.tasks:
+    if task.state:
+        print(f"Subgraph namespace: {task.state.config['configurable']['checkpoint_ns']}")
+        print(f"Subgraph values: {task.state.values}")
+```
+:::
+
+:::js
+```typescript
+const config = { configurable: { thread_id: "1" } };
+const state = await graph.getState(config, { subgraphs: true });
+
+// Access subgraph state from tasks
+for (const task of state.tasks) {
+  if (task.state) {
+    console.log(`Subgraph namespace: ${task.state.config.configurable.checkpoint_ns}`);
+    console.log(`Subgraph values: ${task.state.values}`);
+  }
+}
+```
+:::
+
+#### Get subgraph state history
+
+:::python
+To get a subgraph's state history, first get the subgraph's `checkpoint_ns` from `get_state(subgraphs=True)`, then call `get_state_history` with that namespace:
+
+```python
+# Step 1: Get the subgraph's checkpoint namespace
+config = {"configurable": {"thread_id": "1"}}
+state = graph.get_state(config, subgraphs=True)
+subgraph_config = state.tasks[0].state.config
+subgraph_ns = subgraph_config["configurable"]["checkpoint_ns"]
+
+# Step 2: Get subgraph history using that namespace
+subgraph_history = list(graph.get_state_history({
+    "configurable": {
+        "thread_id": "1",
+        "checkpoint_ns": subgraph_ns
+    }
+}))
+
+for h in subgraph_history:
+    print(f"Subgraph step: {h.metadata['step']}, Values: {h.values}")
+```
+
+<Info>
+**Why doesn't `get_state_history()` have a `subgraphs=True` option?**
+
+`get_state_history()` returns an Iterator to avoid loading all checkpoints into memory at once. Adding `subgraphs=True` would require loading all checkpoints from all nested subgraphs simultaneously, which could cause huge memory overhead. Instead, you explicitly get each subgraph's namespace and fetch its history separately.
+</Info>
+:::
+
+:::js
+To get a subgraph's state history, first get the subgraph's `checkpoint_ns` from `getState({ subgraphs: true })`, then call `getStateHistory` with that namespace:
+
+```typescript
+// Step 1: Get the subgraph's checkpoint namespace
+const config = { configurable: { thread_id: "1" } };
+const state = await graph.getState(config, { subgraphs: true });
+const subgraphConfig = state.tasks[0].state.config;
+const subgraphNs = subgraphConfig.configurable.checkpoint_ns;
+
+// Step 2: Get subgraph history using that namespace
+const subgraphHistory = [];
+for await (const h of graph.getStateHistory({
+  configurable: {
+    thread_id: "1",
+    checkpoint_ns: subgraphNs
+  }
+})) {
+  subgraphHistory.push(h);
+}
+
+for (const h of subgraphHistory) {
+  console.log(`Subgraph step: ${h.metadata.step}, Values: ${h.values}`);
+}
+```
+
+<Info>
+**Why doesn't `getStateHistory()` have a `subgraphs: true` option?**
+
+`getStateHistory()` returns an Iterator to avoid loading all checkpoints into memory at once. Adding `subgraphs: true` would require loading all checkpoints from all nested subgraphs simultaneously, which could cause huge memory overhead. Instead, you explicitly get each subgraph's namespace and fetch its history separately.
+</Info>
+:::
+
+<Accordion title="Full example: accessing subgraph state and history">
+  :::python
+  ```python
+  from langgraph.graph import StateGraph
+  from langgraph.checkpoint.memory import InMemorySaver
+  from typing_extensions import TypedDict
+  from langgraph.types import interrupt
+
+  checkpointer = InMemorySaver()
+
+  class State(TypedDict):
+      step: str
+
+  def node_a(state: State):
+      return {"step": "a"}
+
+  def node_b(state: State):
+      return {"step": "b"}
+
+  def node_c(state: State):
+      return {"step": "c"}
+
+  def node_d(state: State):
+      interrupt("")
+      return {"step": "d"}
+
+  # Build subgraph
+  subgraph_builder = StateGraph(State)
+  subgraph_builder.add_node("node_b", node_b)
+  subgraph_builder.add_node("node_c", node_c)
+  subgraph_builder.add_node("node_d", node_d)
+  subgraph_builder.set_entry_point("node_b")
+  subgraph_builder.add_edge("node_b", "node_c")
+  subgraph_builder.add_edge("node_c", "node_d")
+  subgraph = subgraph_builder.compile()  # checkpointer=None
+
+  # Build parent graph
+  builder = StateGraph(State)
+  builder.add_node("node_a", node_a)
+  builder.add_node("subgraph", subgraph)
+  builder.set_entry_point("node_a")
+  builder.add_edge("node_a", "subgraph")
+  graph = builder.compile(checkpointer=checkpointer)
+
+  # Run the graph
+  config = {"configurable": {"thread_id": "1"}}
+  graph.invoke({"step": "START"}, config)
+
+  # Get subgraph state and history
+  state = graph.get_state(config, subgraphs=True)
+  subgraph_config = state.tasks[0].state.config
+  subgraph_ns = subgraph_config["configurable"]["checkpoint_ns"]
+  print(f"Subgraph namespace: {subgraph_ns}\n")
+
+  state_history = list(graph.get_state_history({
+      "configurable": {
+          "checkpoint_ns": subgraph_ns,
+          "thread_id": "1"
+      }
+  }))
+
+  for h in state_history:
+      print(f"Step: {h.metadata['step']}, Values: {h.values}")
+  ```
+  :::
+
+  :::js
+  ```typescript
+  import { StateGraph, MemorySaver } from "@langchain/langgraph";
+  import { interrupt } from "@langchain/langgraph";
+  import * as z from "zod";
+
+  const checkpointer = new MemorySaver();
+
+  const State = z.object({ step: z.string() });
+
+  const nodeA = (state: z.infer<typeof State>) => ({ step: "a" });
+  const nodeB = (state: z.infer<typeof State>) => ({ step: "b" });
+  const nodeC = (state: z.infer<typeof State>) => ({ step: "c" });
+  const nodeD = (state: z.infer<typeof State>) => {
+    interrupt("");
+    return { step: "d" };
+  };
+
+  // Build subgraph
+  const subgraphBuilder = new StateGraph(State)
+    .addNode("nodeB", nodeB)
+    .addNode("nodeC", nodeC)
+    .addNode("nodeD", nodeD)
+    .addEntrypoint("nodeB")
+    .addEdge("nodeB", "nodeC")
+    .addEdge("nodeC", "nodeD");
+  const subgraph = subgraphBuilder.compile();
+
+  // Build parent graph
+  const builder = new StateGraph(State)
+    .addNode("nodeA", nodeA)
+    .addNode("subgraph", subgraph)
+    .addEntrypoint("nodeA")
+    .addEdge("nodeA", "subgraph");
+  const graph = builder.compile({ checkpointer });
+
+  // Run the graph
+  const config = { configurable: { thread_id: "1" } };
+  await graph.invoke({ step: "START" }, config);
+
+  // Get subgraph state and history
+  const state = await graph.getState(config, { subgraphs: true });
+  const subgraphConfig = state.tasks[0].state.config;
+  const subgraphNs = subgraphConfig.configurable.checkpoint_ns;
+  console.log(`Subgraph namespace: ${subgraphNs}\n`);
+
+  const stateHistory = [];
+  for await (const h of graph.getStateHistory({
+    configurable: {
+      checkpoint_ns: subgraphNs,
+      thread_id: "1"
+    }
+  })) {
+    stateHistory.push(h);
+  }
+
+  for (const h of stateHistory) {
+    console.log(`Step: ${h.metadata.step}, Values: ${h.values}`);
+  }
+  ```
+  :::
+</Accordion>
+
+### Manage checkpointers
+
+With checkpointing enabled, long conversations can exceed the LLM's context window. Common solutions are:
+
+* [Trim messages](#trim-messages) - Remove first or last N messages (before calling LLM)
+* [Delete messages](#delete-messages) - Remove messages from LangGraph state permanently
+* [Summarize messages](#summarize-messages) - Summarize earlier messages and replace them with a summary
+* [Manage checkpoints](#manage-checkpoints) - Store and retrieve message history
+* Custom strategies (e.g., message filtering)
+
+#### Trim messages
+
+:::python
+Most LLMs have a maximum supported context window (denominated in tokens). One way to decide when to truncate messages is to count the tokens in the message history and truncate whenever it approaches that limit. If you're using LangChain, you can use the trim messages utility and specify the number of tokens to keep from the list, as well as the `strategy` (e.g., keep the last `max_tokens`) to use for handling the boundary.
+:::
+:::js
+Most LLMs have a maximum supported context window (denominated in tokens). One way to decide when to truncate messages is to count the tokens in the message history and truncate whenever it approaches that limit. If you're using LangChain, you can use the trim messages utility and specify the number of tokens to keep from the list, as well as the `strategy` (e.g., keep the last `maxTokens`) to use for handling the boundary.
+:::
+
+:::python
+To trim message history, use the [`trim_messages`](https://python.langchain.com/api_reference/core/messages/langchain_core.messages.utils.trim_messages.html) function:
+
+```python
+from langchain_core.messages.utils import trim_messages, count_tokens_approximately
+
+def call_model(state: MessagesState):
+    messages = trim_messages(
+        state["messages"],
+        strategy="last",
+        token_counter=count_tokens_approximately,
+        max_tokens=128,
+        start_on="human",
+        end_on=("human", "tool"),
+    )
+    response = model.invoke(messages)
+    return {"messages": [response]}
+
+builder = StateGraph(MessagesState)
+builder.add_node(call_model)
+# ...
+```
+:::
+
+:::js
+To trim message history, use the [`trimMessages`](https://js.langchain.com/docs/how_to/trim_messages/) function:
+
+```typescript
+import { trimMessages } from "@langchain/core/messages";
+
+const callModel = async (state: z.infer<typeof MessagesZodState>) => {
+  const messages = trimMessages(state.messages, {
+    strategy: "last",
+    maxTokens: 128,
+    startOn: "human",
+    endOn: ["human", "tool"],
+  });
+  const response = await model.invoke(messages);
+  return { messages: [response] };
+};
+
+const builder = new StateGraph(MessagesZodState)
+  .addNode("call_model", callModel);
+// ...
+```
+:::
+
+:::python
+```python expandable
+from langchain_core.messages.utils import trim_messages, count_tokens_approximately
+from langchain.chat_models import init_chat_model
+from langgraph.graph import StateGraph, START, MessagesState
+from langgraph.checkpoint.memory import InMemorySaver
+
+model = init_chat_model("claude-sonnet-4-5-20250929")
+
+def call_model(state: MessagesState):
+    messages = trim_messages(
+        state["messages"],
+        strategy="last",
+        token_counter=count_tokens_approximately,
+        max_tokens=128,
+        start_on="human",
+        end_on=("human", "tool"),
+    )
+    response = model.invoke(messages)
+    return {"messages": [response]}
+
+checkpointer = InMemorySaver()
+builder = StateGraph(MessagesState)
+builder.add_node(call_model)
+builder.add_edge(START, "call_model")
+graph = builder.compile(checkpointer=checkpointer)
+
+config = {"configurable": {"thread_id": "1"}}
+graph.invoke({"messages": "hi, my name is bob"}, config)
+graph.invoke({"messages": "write a short poem about cats"}, config)
+graph.invoke({"messages": "now do the same but for dogs"}, config)
+final_response = graph.invoke({"messages": "what's my name?"}, config)
+
+final_response["messages"][-1].pretty_print()
+```
+
+```
+================================== Ai Message ==================================
+
+Your name is Bob, as you mentioned when you first introduced yourself.
+```
+:::
+
+:::js
+```typescript expandable
+import { trimMessages, BaseMessage } from "@langchain/core/messages";
+import { ChatAnthropic } from "@langchain/anthropic";
+import { StateGraph, START, MessagesZodMeta, MemorySaver } from "@langchain/langgraph";
+import { registry } from "@langchain/langgraph/zod";
+import * as z from "zod";
+
+const MessagesZodState = z.object({
+  messages: z
+    .array(z.custom<BaseMessage>())
+    .register(registry, MessagesZodMeta),
+});
+
+const model = new ChatAnthropic({ model: "claude-3-5-sonnet-20241022" });
+
+const callModel = async (state: z.infer<typeof MessagesZodState>) => {
+  const messages = trimMessages(state.messages, {
+    strategy: "last",
+    maxTokens: 128,
+    startOn: "human",
+    endOn: ["human", "tool"],
+    tokenCounter: model,
+  });
+  const response = await model.invoke(messages);
+  return { messages: [response] };
+};
+
+const checkpointer = new MemorySaver();
+const builder = new StateGraph(MessagesZodState)
+  .addNode("call_model", callModel)
+  .addEdge(START, "call_model");
+const graph = builder.compile({ checkpointer });
+
+const config = { configurable: { thread_id: "1" } };
+await graph.invoke({ messages: [{ role: "user", content: "hi, my name is bob" }] }, config);
+await graph.invoke({ messages: [{ role: "user", content: "write a short poem about cats" }] }, config);
+await graph.invoke({ messages: [{ role: "user", content: "now do the same but for dogs" }] }, config);
+const finalResponse = await graph.invoke({ messages: [{ role: "user", content: "what's my name?" }] }, config);
+
+console.log(finalResponse.messages.at(-1)?.content);
+```
+
+```
+Your name is Bob, as you mentioned when you first introduced yourself.
+```
+:::
+
+#### Delete messages
+
+You can delete messages from the graph state to manage the message history.
+
+:::python
+There are two ways to delete messages from the graph state:
+
+**Remove specific messages** using `RemoveMessage`:
+
+```python
+from langchain.messages import RemoveMessage
+
+def delete_messages(state):
+    messages = state["messages"]
+    if len(messages) > 2:
+        # Remove the earliest two messages
+        return {"messages": [RemoveMessage(id=m.id) for m in messages[:2]]}
+```
+
+**Remove all messages** using `Overwrite`:
+
+```python
+from langgraph.types import Overwrite
+
+def delete_all_messages(state):
+    # Bypass the add_messages reducer and clear all messages
+    return {"messages": Overwrite([])}
+```
+
+<Note>
+`RemoveMessage` works with the `add_messages` [reducer](/oss/langgraph/graph-api#reducers) (like in [`MessagesState`](/oss/langgraph/graph-api#messagesstate)), while `Overwrite` bypasses the reducer entirely. [Learn more about Overwrite](/oss/langgraph/use-graph-api#bypass-reducers-with-overwrite).
+</Note>
+:::
+
+:::js
+To delete messages from the graph state, use `RemoveMessage`. For `RemoveMessage` to work, you need to use a state key with `messagesStateReducer` [reducer](/oss/langgraph/graph-api#reducers), like `MessagesZodState`.
+
+To remove specific messages:
+
+```typescript
+import { RemoveMessage } from "@langchain/core/messages";
+
+const deleteMessages = (state) => {
+  const messages = state.messages;
+  if (messages.length > 2) {
+    // remove the earliest two messages
+    return {
+      messages: messages
+        .slice(0, 2)
+        .map((m) => new RemoveMessage({ id: m.id })),
+    };
+  }
+};
+```
+:::
+
+<Warning>
+When deleting messages, **make sure** that the resulting message history is valid. Check the limitations of the LLM provider you're using. For example:
+
+* Some providers expect message history to start with a `user` message
+* Most providers require `assistant` messages with tool calls to be followed by corresponding `tool` result messages.
+</Warning>
+
+<Accordion title="Full example: delete messages">
+  :::python
+  ```python
+  from langchain.messages import RemoveMessage
+  from langchain.chat_models import init_chat_model
+  from langgraph.graph import StateGraph, START, MessagesState
+  from langgraph.checkpoint.memory import InMemorySaver
+
+  model = init_chat_model("claude-haiku-4-5-20251001")
+
+  def delete_messages(state):
+      messages = state["messages"]
+      if len(messages) > 2:
+          return {"messages": [RemoveMessage(id=m.id) for m in messages[:2]]}
+
+  def call_model(state: MessagesState):
+      response = model.invoke(state["messages"])
+      return {"messages": response}
+
+  builder = StateGraph(MessagesState)
+  builder.add_sequence([call_model, delete_messages])
+  builder.add_edge(START, "call_model")
+
+  checkpointer = InMemorySaver()
+  app = builder.compile(checkpointer=checkpointer)
+
+  config = {"configurable": {"thread_id": "1"}}
+
+  for event in app.stream(
+      {"messages": [{"role": "user", "content": "hi! I'm bob"}]},
+      config,
+      stream_mode="values"
+  ):
+      print([(message.type, message.content) for message in event["messages"]])
+
+  for event in app.stream(
+      {"messages": [{"role": "user", "content": "what's my name?"}]},
+      config,
+      stream_mode="values"
+  ):
+      print([(message.type, message.content) for message in event["messages"]])
+  ```
+  :::
+
+  :::js
+  ```typescript
+  import { RemoveMessage, BaseMessage } from "@langchain/core/messages";
+  import { ChatAnthropic } from "@langchain/anthropic";
+  import { StateGraph, START, MemorySaver, MessagesZodMeta } from "@langchain/langgraph";
+  import * as z from "zod";
+  import { registry } from "@langchain/langgraph/zod";
+
+  const MessagesZodState = z.object({
+    messages: z
+      .array(z.custom<BaseMessage>())
+      .register(registry, MessagesZodMeta),
+  });
+
+  const model = new ChatAnthropic({ model: "claude-3-5-sonnet-20241022" });
+
+  const deleteMessages = (state: z.infer<typeof MessagesZodState>) => {
+    const messages = state.messages;
+    if (messages.length > 2) {
+      return { messages: messages.slice(0, 2).map(m => new RemoveMessage({ id: m.id })) };
+    }
+    return {};
+  };
+
+  const callModel = async (state: z.infer<typeof MessagesZodState>) => {
+    const response = await model.invoke(state.messages);
+    return { messages: [response] };
+  };
+
+  const builder = new StateGraph(MessagesZodState)
+    .addNode("call_model", callModel)
+    .addNode("delete_messages", deleteMessages)
+    .addEdge(START, "call_model")
+    .addEdge("call_model", "delete_messages");
+
+  const checkpointer = new MemorySaver();
+  const app = builder.compile({ checkpointer });
+
+  const config = { configurable: { thread_id: "1" } };
+
+  for await (const event of await app.stream(
+    { messages: [{ role: "user", content: "hi! I'm bob" }] },
+    { ...config, streamMode: "values" }
+  )) {
+    console.log(event.messages.map(message => [message.getType(), message.content]));
+  }
+
+  for await (const event of await app.stream(
+    { messages: [{ role: "user", content: "what's my name?" }] },
+    { ...config, streamMode: "values" }
+  )) {
+    console.log(event.messages.map(message => [message.getType(), message.content]));
+  }
+  ```
+  :::
+</Accordion>
+
+#### Summarize messages
+
+The problem with trimming or removing messages is that you may lose information. Because of this, some applications benefit from a more sophisticated approach of summarizing the message history using a chat model.
+
+![](/oss/images/summary.png)
+
+:::python
+Prompting and orchestration logic can be used to summarize the message history. For example, in LangGraph you can extend the [`MessagesState`](/oss/langgraph/graph-api#working-with-messages-in-graph-state) to include a `summary` key:
+
+```python
+from langgraph.graph import MessagesState
+class State(MessagesState):
+    summary: str
+```
+
+Then, you can generate a summary of the chat history, using any existing summary as context for the next summary. This `summarize_conversation` node can be called after some number of messages have accumulated in the `messages` state key.
+
+```python
+def summarize_conversation(state: State):
+
+    # First, we get any existing summary
+    summary = state.get("summary", "")
+
+    # Create our summarization prompt
+    if summary:
+
+        # A summary already exists
+        summary_message = (
+            f"This is a summary of the conversation to date: {summary}\n\n"
+            "Extend the summary by taking into account the new messages above:"
+        )
+
+    else:
+        summary_message = "Create a summary of the conversation above:"
+
+    # Add prompt to our history
+    messages = state["messages"] + [HumanMessage(content=summary_message)]
+    response = model.invoke(messages)
+
+    # Delete all but the 2 most recent messages
+    delete_messages = [RemoveMessage(id=m.id) for m in state["messages"][:-2]]
+    return {"summary": response.content, "messages": delete_messages}
+```
+:::
+
+:::js
+Prompting and orchestration logic can be used to summarize the message history. For example, in LangGraph you can include a `summary` key in the state alongside the `messages` key:
+
+```typescript
+import { BaseMessage } from "@langchain/core/messages";
+import { MessagesZodMeta } from "@langchain/langgraph";
+import { registry } from "@langchain/langgraph/zod";
+import * as z from "zod";
+
+const State = z.object({
+  messages: z
+    .array(z.custom<BaseMessage>())
+    .register(registry, MessagesZodMeta),
+  summary: z.string().optional(),
+});
+```
+
+Then, you can generate a summary of the chat history, using any existing summary as context for the next summary. This `summarizeConversation` node can be called after some number of messages have accumulated in the `messages` state key.
+
+```typescript
+import { RemoveMessage, HumanMessage } from "@langchain/core/messages";
+
+const summarizeConversation = async (state: z.infer<typeof State>) => {
+  // First, we get any existing summary
+  const summary = state.summary || "";
+
+  // Create our summarization prompt
+  let summaryMessage: string;
+  if (summary) {
+    // A summary already exists
+    summaryMessage =
+      `This is a summary of the conversation to date: ${summary}\n\n` +
+      "Extend the summary by taking into account the new messages above:";
+  } else {
+    summaryMessage = "Create a summary of the conversation above:";
+  }
+
+  // Add prompt to our history
+  const messages = [
+    ...state.messages,
+    new HumanMessage({ content: summaryMessage })
+  ];
+  const response = await model.invoke(messages);
+
+  // Delete all but the 2 most recent messages
+  const deleteMessages = state.messages
+    .slice(0, -2)
+    .map(m => new RemoveMessage({ id: m.id }));
+
+  return {
+    summary: response.content,
+    messages: deleteMessages
+  };
+};
+```
+:::
+
+<Accordion title="Full example: summarize messages">
+  :::python
+  ```python
+  from typing import Any, TypedDict
+
+  from langchain.chat_models import init_chat_model
+  from langchain.messages import AnyMessage
+  from langchain_core.messages.utils import count_tokens_approximately
+  from langgraph.graph import StateGraph, START, MessagesState
+  from langgraph.checkpoint.memory import InMemorySaver
+  from langmem.short_term import SummarizationNode, RunningSummary
+
+  model = init_chat_model("claude-sonnet-4-5-20250929")
+  summarization_model = model.bind(max_tokens=128)
+
+  class State(MessagesState):
+      context: dict[str, RunningSummary]
+
+  class LLMInputState(TypedDict):
+      summarized_messages: list[AnyMessage]
+      context: dict[str, RunningSummary]
+
+  summarization_node = SummarizationNode(
+      token_counter=count_tokens_approximately,
+      model=summarization_model,
+      max_tokens=256,
+      max_tokens_before_summary=256,
+      max_summary_tokens=128,
+  )
+
+  def call_model(state: LLMInputState):
+      response = model.invoke(state["summarized_messages"])
+      return {"messages": [response]}
+
+  checkpointer = InMemorySaver()
+  builder = StateGraph(State)
+  builder.add_node(call_model)
+  builder.add_node("summarize", summarization_node)
+  builder.add_edge(START, "summarize")
+  builder.add_edge("summarize", "call_model")
+  graph = builder.compile(checkpointer=checkpointer)
+
+  # Invoke the graph
+  config = {"configurable": {"thread_id": "1"}}
+  graph.invoke({"messages": "hi, my name is bob"}, config)
+  graph.invoke({"messages": "write a short poem about cats"}, config)
+  graph.invoke({"messages": "now do the same but for dogs"}, config)
+  final_response = graph.invoke({"messages": "what's my name?"}, config)
+
+  final_response["messages"][-1].pretty_print()
+  print("\nSummary:", final_response["context"]["running_summary"].summary)
+  ```
+  :::
+
+  :::js
+  ```typescript
+  import { ChatAnthropic } from "@langchain/anthropic";
+  import {
+    SystemMessage,
+    HumanMessage,
+    RemoveMessage,
+    type BaseMessage
+  } from "@langchain/core/messages";
+  import {
+    MessagesZodMeta,
+    StateGraph,
+    START,
+    END,
+    MemorySaver,
+  } from "@langchain/langgraph";
+  import { registry } from "@langchain/langgraph/zod";
+  import * as z from "zod";
+  import { v4 as uuidv4 } from "uuid";
+
+  const memory = new MemorySaver();
+
+  const GraphState = z.object({
+    messages: z
+      .array(z.custom<BaseMessage>())
+      .register(registry, MessagesZodMeta),
+    summary: z.string().default(""),
+  });
+
+  const model = new ChatAnthropic({ model: "claude-haiku-4-5-20251001" });
+
+  const callModel = async (state: z.infer<typeof GraphState>) => {
+    const { summary } = state;
+    let { messages } = state;
+    if (summary) {
+      const systemMessage = new SystemMessage({
+        id: uuidv4(),
+        content: `Summary of conversation earlier: ${summary}`,
+      });
+      messages = [systemMessage, ...messages];
+    }
+    const response = await model.invoke(messages);
+    return { messages: [response] };
+  };
+
+  const shouldContinue = (state: z.infer<typeof GraphState>) => {
+    const messages = state.messages;
+    if (messages.length > 6) {
+      return "summarize_conversation";
+    }
+    return END;
+  };
+
+  const summarizeConversation = async (state: z.infer<typeof GraphState>) => {
+    const { summary, messages } = state;
+    let summaryMessage: string;
+    if (summary) {
+      summaryMessage =
+        `This is summary of the conversation to date: ${summary}\n\n` +
+        "Extend the summary by taking into account the new messages above:";
+    } else {
+      summaryMessage = "Create a summary of the conversation above:";
+    }
+
+    const allMessages = [
+      ...messages,
+      new HumanMessage({ id: uuidv4(), content: summaryMessage }),
+    ];
+
+    const response = await model.invoke(allMessages);
+
+    const deleteMessages = messages
+      .slice(0, -2)
+      .map((m) => new RemoveMessage({ id: m.id! }));
+
+    if (typeof response.content !== "string") {
+      throw new Error("Expected a string response from the model");
+    }
+
+    return { summary: response.content, messages: deleteMessages };
+  };
+
+  const workflow = new StateGraph(GraphState)
+    .addNode("conversation", callModel)
+    .addNode("summarize_conversation", summarizeConversation)
+    .addEdge(START, "conversation")
+    .addConditionalEdges("conversation", shouldContinue)
+    .addEdge("summarize_conversation", END);
+
+  const app = workflow.compile({ checkpointer: memory });
+  ```
+  :::
+</Accordion>
+
+#### Manage checkpoints
+
+You can view and delete the information stored by the checkpointer.
+
+<Accordion title="View thread state">
+  :::python
+  <Tabs>
+      <Tab title="Graph/Functional API">
+      ```python
+      config = {
+          "configurable": {
+              "thread_id": "1",
+              # optionally provide an ID for a specific checkpoint,
+              # otherwise the latest checkpoint is shown
+              # "checkpoint_id": "1f029ca3-1f5b-6704-8004-820c16b69a5a"
+
+          }
+      }
+      graph.get_state(config)
+  ```
+
+      ```
+      StateSnapshot(
+          values={'messages': [HumanMessage(content="hi! I'm bob"), AIMessage(content='Hi Bob! How are you doing today?), HumanMessage(content="what's my name?"), AIMessage(content='Your name is Bob.')]}, next=(),
+          config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1f5b-6704-8004-820c16b69a5a'}},
+          metadata={
+              'source': 'loop',
+              'writes': {'call_model': {'messages': AIMessage(content='Your name is Bob.')}},
+              'step': 4,
+              'parents': {},
+              'thread_id': '1'
+          },
+          created_at='2025-05-05T16:01:24.680462+00:00',
+          parent_config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1790-6b0a-8003-baf965b6a38f'}},
+          tasks=(),
+          interrupts=()
+      )
+      ```
+      </Tab>
+      <Tab title="Checkpointer API">
+      ```python
+      config = {
+          "configurable": {
+              "thread_id": "1",
+              # optionally provide an ID for a specific checkpoint,
+              # otherwise the latest checkpoint is shown
+              # "checkpoint_id": "1f029ca3-1f5b-6704-8004-820c16b69a5a"
+
+          }
+      }
+      checkpointer.get_tuple(config)
+  ```
+
+      ```
+      CheckpointTuple(
+          config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1f5b-6704-8004-820c16b69a5a'}},
+          checkpoint={
+              'v': 3,
+              'ts': '2025-05-05T16:01:24.680462+00:00',
+              'id': '1f029ca3-1f5b-6704-8004-820c16b69a5a',
+              'channel_versions': {'__start__': '00000000000000000000000000000005.0.5290678567601859', 'messages': '00000000000000000000000000000006.0.3205149138784782', 'branch:to:call_model': '00000000000000000000000000000006.0.14611156755133758'}, 'versions_seen': {'__input__': {}, '__start__': {'__start__': '00000000000000000000000000000004.0.5736472536395331'}, 'call_model': {'branch:to:call_model': '00000000000000000000000000000005.0.1410174088651449'}},
+              'channel_values': {'messages': [HumanMessage(content="hi! I'm bob"), AIMessage(content='Hi Bob! How are you doing today?), HumanMessage(content="what's my name?"), AIMessage(content='Your name is Bob.')]},
+          },
+          metadata={
+              'source': 'loop',
+              'writes': {'call_model': {'messages': AIMessage(content='Your name is Bob.')}},
+              'step': 4,
+              'parents': {},
+              'thread_id': '1'
+          },
+          parent_config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1790-6b0a-8003-baf965b6a38f'}},
+          pending_writes=[]
+      )
+      ```
+      </Tab>
+  </Tabs>
+  :::
+
+  :::js
+  ```typescript
+  const config = {
+    configurable: {
+      thread_id: "1",
+      // optionally provide an ID for a specific checkpoint,
+      // otherwise the latest checkpoint is shown
+      // checkpoint_id: "1f029ca3-1f5b-6704-8004-820c16b69a5a"
+    },
+  };
+  await graph.getState(config);
+  ```
+
+  ```
+  {
+    values: { messages: [HumanMessage(...), AIMessage(...), HumanMessage(...), AIMessage(...)] },
+    next: [],
+    config: { configurable: { thread_id: '1', checkpoint_ns: '', checkpoint_id: '1f029ca3-1f5b-6704-8004-820c16b69a5a' } },
+    metadata: {
+      source: 'loop',
+      writes: { call_model: { messages: AIMessage(...) } },
+      step: 4,
+      parents: {},
+      thread_id: '1'
+    },
+    createdAt: '2025-05-05T16:01:24.680462+00:00',
+    parentConfig: { configurable: { thread_id: '1', checkpoint_ns: '', checkpoint_id: '1f029ca3-1790-6b0a-8003-baf965b6a38f' } },
+    tasks: [],
+    interrupts: []
+  }
+  ```
+  :::
+</Accordion>
+
+<Accordion title="View the history of the thread">
+  :::python
+  <Tabs>
+      <Tab title="Graph/Functional API">
+      ```python
+      config = {
+          "configurable": {
+              "thread_id": "1"
+          }
+      }
+      list(graph.get_state_history(config))
+  ```
+
+      ```
+      [
+          StateSnapshot(...),
+          StateSnapshot(...),
+          StateSnapshot(...),
+          # ... more checkpoints
+      ]
+      ```
+      </Tab>
+      <Tab title="Checkpointer API">
+      ```python
+      config = {
+          "configurable": {
+              "thread_id": "1"
+          }
+      }
+      list(checkpointer.list(config))
+  ```
+
+      ```
+      [
+          CheckpointTuple(...),
+          CheckpointTuple(...),
+          CheckpointTuple(...),
+          # ... more checkpoints
+      ]
+      ```
+      </Tab>
+  </Tabs>
+  :::
+
+  :::js
+  ```typescript
+  const config = {
+    configurable: {
+      thread_id: "1",
+    },
+  };
+
+  const history = [];
+  for await (const state of graph.getStateHistory(config)) {
+    history.push(state);
+  }
+  ```
+  :::
+</Accordion>
+
+<Accordion title="Delete all checkpoints for a thread">
+  :::python
+  ```python
+  thread_id = "1"
+  checkpointer.delete_thread(thread_id)
+  ```
+  :::
+
+  :::js
+  ```typescript
+  const threadId = "1";
+  await checkpointer.deleteThread(threadId);
+  ```
+  :::
+</Accordion>
+
+### Checkpoint data
+
+Checkpointers need to serialize state when saving it to storage. LangGraph provides flexible serialization options and supports encryption for sensitive data.
+
+#### Serialization
+
+:::python
+Checkpointers use `JsonPlusSerializer` by default, which handles:
+- LangChain and LangGraph primitives
+- Python datetimes
+- Enums
+- Common Python types
+
+For objects not supported by the default serializer (e.g., Pandas dataframes), use pickle fallback:
+
+```python
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+
+checkpointer = InMemorySaver(
+    serde=JsonPlusSerializer(pickle_fallback=True)
+)
+```
+:::
+
+:::js
+Checkpointers include default serialization that handles:
+- LangChain and LangGraph primitives
+- JavaScript Date objects
+- Common JavaScript types
+:::
+
+#### Encryption
+
+:::python
+To encrypt all persisted state, pass an instance of @[`EncryptedSerializer`] to the `serde` argument of any checkpointer. The easiest way is via @[`from_pycryptodome_aes`], which reads the AES key from the `LANGGRAPH_AES_KEY` environment variable:
+
+<Tabs>
+  <Tab title="SQLite">
+  ```python
+  import sqlite3
+  from langgraph.checkpoint.serde.encrypted import EncryptedSerializer
+  from langgraph.checkpoint.sqlite import SqliteSaver
+
+  serde = EncryptedSerializer.from_pycryptodome_aes()  # reads LANGGRAPH_AES_KEY
+  checkpointer = SqliteSaver(sqlite3.connect("checkpoint.db"), serde=serde)
+  ```
+  </Tab>
+
+  <Tab title="Postgres">
+  ```python
+  from langgraph.checkpoint.serde.encrypted import EncryptedSerializer
+  from langgraph.checkpoint.postgres import PostgresSaver
+
+  serde = EncryptedSerializer.from_pycryptodome_aes()  # reads LANGGRAPH_AES_KEY
+  checkpointer = PostgresSaver.from_conn_string("postgresql://...", serde=serde)
+  checkpointer.setup()
+  ```
+  </Tab>
+</Tabs>
+
+<Note>
+When running on LangSmith, encryption is automatically enabled whenever `LANGGRAPH_AES_KEY` is present. Other encryption schemes can be used by implementing @[`CipherProtocol`] and supplying it to @[`EncryptedSerializer`].
+</Note>
+:::
+
+---
+
+## Stores
+
+Stores enable long-term, cross-thread memory for storing user-specific or application-level data that should persist across multiple conversations or workflow sessions.
+
+![Model of shared state](/oss/images/shared_state.png)
+
+While [checkpointers](#checkpointers) save state to a specific thread, stores allow you to share information **across threads**. For example, you might want to remember a user's preferences or facts about them across all of their conversations with your agent.
+
+### Add stores
+
+:::python
+```python
+from langgraph.store.memory import InMemoryStore
 from langgraph.graph import StateGraph
 
-store = InMemoryStore()  # [!code highlight]
+store = InMemoryStore()
 
 builder = StateGraph(...)
-graph = builder.compile(store=store)  # [!code highlight]
+graph = builder.compile(store=store)
 ```
 :::
 
@@ -533,7 +1942,35 @@ const graph = builder.compile({ store });
 ```
 :::
 
-### Use in production
+Stores organize data using **namespaces** - tuples that help you categorize and retrieve information:
+
+:::python
+```python
+# Store user preferences
+user_id = "123"
+namespace = (user_id, "preferences")
+store.put(namespace, "theme", {"value": "dark"})
+
+# Store user facts
+namespace = (user_id, "facts")
+store.put(namespace, "fact_1", {"text": "Likes pizza"})
+```
+:::
+
+:::js
+```typescript
+// Store user preferences
+const userId = "123";
+let namespace = [userId, "preferences"];
+await store.put(namespace, "theme", { value: "dark" });
+
+// Store user facts
+namespace = [userId, "facts"];
+await store.put(namespace, "fact_1", { text: "Likes pizza" });
+```
+:::
+
+#### Use in production
 
 In production, use a store backed by a database:
 
@@ -542,9 +1979,9 @@ In production, use a store backed by a database:
 from langgraph.store.postgres import PostgresStore
 
 DB_URI = "postgresql://postgres:postgres@localhost:5442/postgres?sslmode=disable"
-with PostgresStore.from_conn_string(DB_URI) as store:  # [!code highlight]
+with PostgresStore.from_conn_string(DB_URI) as store:
     builder = StateGraph(...)
-    graph = builder.compile(store=store)  # [!code highlight]
+    graph = builder.compile(store=store)
 ```
 :::
 
@@ -577,15 +2014,16 @@ const graph = builder.compile({ store });
       from langchain.chat_models import init_chat_model
       from langgraph.graph import StateGraph, MessagesState, START
       from langgraph.checkpoint.postgres import PostgresSaver
-      from langgraph.store.postgres import PostgresStore  # [!code highlight]
+      from langgraph.store.postgres import PostgresStore
       from langgraph.store.base import BaseStore
+      import uuid
 
       model = init_chat_model(model="claude-haiku-4-5-20251001")
 
       DB_URI = "postgresql://postgres:postgres@localhost:5442/postgres?sslmode=disable"
 
       with (
-          PostgresStore.from_conn_string(DB_URI) as store,  # [!code highlight]
+          PostgresStore.from_conn_string(DB_URI) as store,
           PostgresSaver.from_conn_string(DB_URI) as checkpointer,
       ):
           # store.setup()
@@ -595,11 +2033,11 @@ const graph = builder.compile({ store });
               state: MessagesState,
               config: RunnableConfig,
               *,
-              store: BaseStore,  # [!code highlight]
+              store: BaseStore,
           ):
               user_id = config["configurable"]["user_id"]
               namespace = ("memories", user_id)
-              memories = store.search(namespace, query=str(state["messages"][-1].content))  # [!code highlight]
+              memories = store.search(namespace, query=str(state["messages"][-1].content))
               info = "\n".join([d.value["data"] for d in memories])
               system_msg = f"You are a helpful assistant talking to the user. User info: {info}"
 
@@ -607,7 +2045,7 @@ const graph = builder.compile({ store });
               last_message = state["messages"][-1]
               if "remember" in last_message.content.lower():
                   memory = "User name is Bob"
-                  store.put(namespace, str(uuid.uuid4()), {"data": memory})  # [!code highlight]
+                  store.put(namespace, str(uuid.uuid4()), {"data": memory})
 
               response = model.invoke(
                   [{"role": "system", "content": system_msg}] + state["messages"]
@@ -620,32 +2058,32 @@ const graph = builder.compile({ store });
 
           graph = builder.compile(
               checkpointer=checkpointer,
-              store=store,  # [!code highlight]
+              store=store,
           )
 
           config = {
               "configurable": {
-                  "thread_id": "1",  # [!code highlight]
-                  "user_id": "1",  # [!code highlight]
+                  "thread_id": "1",
+                  "user_id": "1",
               }
           }
           for chunk in graph.stream(
               {"messages": [{"role": "user", "content": "Hi! Remember: my name is Bob"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values",
           ):
               chunk["messages"][-1].pretty_print()
 
           config = {
               "configurable": {
-                  "thread_id": "2",  # [!code highlight]
+                  "thread_id": "2",
                   "user_id": "1",
               }
           }
 
           for chunk in graph.stream(
               {"messages": [{"role": "user", "content": "what is my name?"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values",
           ):
               chunk["messages"][-1].pretty_print()
@@ -657,15 +2095,16 @@ const graph = builder.compile({ store });
       from langchain.chat_models import init_chat_model
       from langgraph.graph import StateGraph, MessagesState, START
       from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-      from langgraph.store.postgres.aio import AsyncPostgresStore  # [!code highlight]
+      from langgraph.store.postgres.aio import AsyncPostgresStore
       from langgraph.store.base import BaseStore
+      import uuid
 
       model = init_chat_model(model="claude-haiku-4-5-20251001")
 
       DB_URI = "postgresql://postgres:postgres@localhost:5442/postgres?sslmode=disable"
 
       async with (
-          AsyncPostgresStore.from_conn_string(DB_URI) as store,  # [!code highlight]
+          AsyncPostgresStore.from_conn_string(DB_URI) as store,
           AsyncPostgresSaver.from_conn_string(DB_URI) as checkpointer,
       ):
           # await store.setup()
@@ -675,11 +2114,11 @@ const graph = builder.compile({ store });
               state: MessagesState,
               config: RunnableConfig,
               *,
-              store: BaseStore,  # [!code highlight]
+              store: BaseStore,
           ):
               user_id = config["configurable"]["user_id"]
               namespace = ("memories", user_id)
-              memories = await store.asearch(namespace, query=str(state["messages"][-1].content))  # [!code highlight]
+              memories = await store.asearch(namespace, query=str(state["messages"][-1].content))
               info = "\n".join([d.value["data"] for d in memories])
               system_msg = f"You are a helpful assistant talking to the user. User info: {info}"
 
@@ -687,7 +2126,7 @@ const graph = builder.compile({ store });
               last_message = state["messages"][-1]
               if "remember" in last_message.content.lower():
                   memory = "User name is Bob"
-                  await store.aput(namespace, str(uuid.uuid4()), {"data": memory})  # [!code highlight]
+                  await store.aput(namespace, str(uuid.uuid4()), {"data": memory})
 
               response = await model.ainvoke(
                   [{"role": "system", "content": system_msg}] + state["messages"]
@@ -700,32 +2139,32 @@ const graph = builder.compile({ store });
 
           graph = builder.compile(
               checkpointer=checkpointer,
-              store=store,  # [!code highlight]
+              store=store,
           )
 
           config = {
               "configurable": {
-                  "thread_id": "1",  # [!code highlight]
-                  "user_id": "1",  # [!code highlight]
+                  "thread_id": "1",
+                  "user_id": "1",
               }
           }
           async for chunk in graph.astream(
               {"messages": [{"role": "user", "content": "Hi! Remember: my name is Bob"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values",
           ):
               chunk["messages"][-1].pretty_print()
 
           config = {
               "configurable": {
-                  "thread_id": "2",  # [!code highlight]
+                  "thread_id": "2",
                   "user_id": "1",
               }
           }
 
           async for chunk in graph.astream(
               {"messages": [{"role": "user", "content": "what is my name?"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values",
           ):
               chunk["messages"][-1].pretty_print()
@@ -833,7 +2272,7 @@ const graph = builder.compile({ store });
 </Accordion>
 
 :::python
-<Accordion title="Example: using [Redis](https://pypi.org/project/langgraph-checkpoint-redis/) store">
+<Accordion title="Example: using Redis store">
   ```
   pip install -U langgraph langgraph-checkpoint-redis
   ```
@@ -849,15 +2288,16 @@ const graph = builder.compile({ store });
       from langchain.chat_models import init_chat_model
       from langgraph.graph import StateGraph, MessagesState, START
       from langgraph.checkpoint.redis import RedisSaver
-      from langgraph.store.redis import RedisStore  # [!code highlight]
+      from langgraph.store.redis import RedisStore
       from langgraph.store.base import BaseStore
+      import uuid
 
       model = init_chat_model(model="claude-haiku-4-5-20251001")
 
       DB_URI = "redis://localhost:6379"
 
       with (
-          RedisStore.from_conn_string(DB_URI) as store,  # [!code highlight]
+          RedisStore.from_conn_string(DB_URI) as store,
           RedisSaver.from_conn_string(DB_URI) as checkpointer,
       ):
           store.setup()
@@ -867,11 +2307,11 @@ const graph = builder.compile({ store });
               state: MessagesState,
               config: RunnableConfig,
               *,
-              store: BaseStore,  # [!code highlight]
+              store: BaseStore,
           ):
               user_id = config["configurable"]["user_id"]
               namespace = ("memories", user_id)
-              memories = store.search(namespace, query=str(state["messages"][-1].content))  # [!code highlight]
+              memories = store.search(namespace, query=str(state["messages"][-1].content))
               info = "\n".join([d.value["data"] for d in memories])
               system_msg = f"You are a helpful assistant talking to the user. User info: {info}"
 
@@ -879,7 +2319,7 @@ const graph = builder.compile({ store });
               last_message = state["messages"][-1]
               if "remember" in last_message.content.lower():
                   memory = "User name is Bob"
-                  store.put(namespace, str(uuid.uuid4()), {"data": memory})  # [!code highlight]
+                  store.put(namespace, str(uuid.uuid4()), {"data": memory})
 
               response = model.invoke(
                   [{"role": "system", "content": system_msg}] + state["messages"]
@@ -892,32 +2332,32 @@ const graph = builder.compile({ store });
 
           graph = builder.compile(
               checkpointer=checkpointer,
-              store=store,  # [!code highlight]
+              store=store,
           )
 
           config = {
               "configurable": {
-                  "thread_id": "1",  # [!code highlight]
-                  "user_id": "1",  # [!code highlight]
+                  "thread_id": "1",
+                  "user_id": "1",
               }
           }
           for chunk in graph.stream(
               {"messages": [{"role": "user", "content": "Hi! Remember: my name is Bob"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values",
           ):
               chunk["messages"][-1].pretty_print()
 
           config = {
               "configurable": {
-                  "thread_id": "2",  # [!code highlight]
+                  "thread_id": "2",
                   "user_id": "1",
               }
           }
 
           for chunk in graph.stream(
               {"messages": [{"role": "user", "content": "what is my name?"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values",
           ):
               chunk["messages"][-1].pretty_print()
@@ -929,15 +2369,16 @@ const graph = builder.compile({ store });
       from langchain.chat_models import init_chat_model
       from langgraph.graph import StateGraph, MessagesState, START
       from langgraph.checkpoint.redis.aio import AsyncRedisSaver
-      from langgraph.store.redis.aio import AsyncRedisStore  # [!code highlight]
+      from langgraph.store.redis.aio import AsyncRedisStore
       from langgraph.store.base import BaseStore
+      import uuid
 
       model = init_chat_model(model="claude-haiku-4-5-20251001")
 
       DB_URI = "redis://localhost:6379"
 
       async with (
-          AsyncRedisStore.from_conn_string(DB_URI) as store,  # [!code highlight]
+          AsyncRedisStore.from_conn_string(DB_URI) as store,
           AsyncRedisSaver.from_conn_string(DB_URI) as checkpointer,
       ):
           # await store.setup()
@@ -947,11 +2388,11 @@ const graph = builder.compile({ store });
               state: MessagesState,
               config: RunnableConfig,
               *,
-              store: BaseStore,  # [!code highlight]
+              store: BaseStore,
           ):
               user_id = config["configurable"]["user_id"]
               namespace = ("memories", user_id)
-              memories = await store.asearch(namespace, query=str(state["messages"][-1].content))  # [!code highlight]
+              memories = await store.asearch(namespace, query=str(state["messages"][-1].content))
               info = "\n".join([d.value["data"] for d in memories])
               system_msg = f"You are a helpful assistant talking to the user. User info: {info}"
 
@@ -959,7 +2400,7 @@ const graph = builder.compile({ store });
               last_message = state["messages"][-1]
               if "remember" in last_message.content.lower():
                   memory = "User name is Bob"
-                  await store.aput(namespace, str(uuid.uuid4()), {"data": memory})  # [!code highlight]
+                  await store.aput(namespace, str(uuid.uuid4()), {"data": memory})
 
               response = await model.ainvoke(
                   [{"role": "system", "content": system_msg}] + state["messages"]
@@ -972,44 +2413,141 @@ const graph = builder.compile({ store });
 
           graph = builder.compile(
               checkpointer=checkpointer,
-              store=store,  # [!code highlight]
+              store=store,
           )
 
           config = {
               "configurable": {
-                  "thread_id": "1",  # [!code highlight]
-                  "user_id": "1",  # [!code highlight]
+                  "thread_id": "1",
+                  "user_id": "1",
               }
           }
           async for chunk in graph.astream(
               {"messages": [{"role": "user", "content": "Hi! Remember: my name is Bob"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values",
           ):
               chunk["messages"][-1].pretty_print()
 
           config = {
               "configurable": {
-                  "thread_id": "2",  # [!code highlight]
+                  "thread_id": "2",
                   "user_id": "1",
               }
           }
 
           async for chunk in graph.astream(
               {"messages": [{"role": "user", "content": "what is my name?"}]},
-              config,  # [!code highlight]
+              config,
               stream_mode="values",
           ):
               chunk["messages"][-1].pretty_print()
 ```
         </Tab>
     </Tabs>
+  :::
+
+  :::js
+  ```
+  npm install @langchain/langgraph-checkpoint-postgres
+  ```
+
+    <Tip>
+    You need to call `store.setup()` the first time you're using Postgres store
+    </Tip>
+
+  ```typescript
+  import { ChatAnthropic } from "@langchain/anthropic";
+  import { StateGraph, MessagesZodMeta, START, LangGraphRunnableConfig } from "@langchain/langgraph";
+  import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
+  import { PostgresStore } from "@langchain/langgraph-checkpoint-postgres/store";
+  import { BaseMessage } from "@langchain/core/messages";
+  import { registry } from "@langchain/langgraph/zod";
+  import * as z from "zod";
+  import { v4 as uuidv4 } from "uuid";
+
+  const MessagesZodState = z.object({
+    messages: z
+      .array(z.custom<BaseMessage>())
+      .register(registry, MessagesZodMeta),
+  });
+
+  const model = new ChatAnthropic({ model: "claude-haiku-4-5-20251001" });
+
+  const DB_URI = "postgresql://postgres:postgres@localhost:5442/postgres?sslmode=disable";
+
+  const store = PostgresStore.fromConnString(DB_URI);
+  const checkpointer = PostgresSaver.fromConnString(DB_URI);
+  // await store.setup();
+  // await checkpointer.setup();
+
+  const callModel = async (
+    state: z.infer<typeof MessagesZodState>,
+    config: LangGraphRunnableConfig,
+  ) => {
+    const userId = config.configurable?.userId;
+    const namespace = ["memories", userId];
+    const memories = await config.store?.search(namespace, { query: state.messages.at(-1)?.content });
+    const info = memories?.map(d => d.value.data).join("\n") || "";
+    const systemMsg = `You are a helpful assistant talking to the user. User info: ${info}`;
+
+    // Store new memories if the user asks the model to remember
+    const lastMessage = state.messages.at(-1);
+    if (lastMessage?.content?.toLowerCase().includes("remember")) {
+      const memory = "User name is Bob";
+      await config.store?.put(namespace, uuidv4(), { data: memory });
+    }
+
+    const response = await model.invoke([
+      { role: "system", content: systemMsg },
+      ...state.messages
+    ]);
+    return { messages: [response] };
+  };
+
+  const builder = new StateGraph(MessagesZodState)
+    .addNode("call_model", callModel)
+    .addEdge(START, "call_model");
+
+  const graph = builder.compile({
+    checkpointer,
+    store,
+  });
+
+  const config = {
+    configurable: {
+      thread_id: "1",
+      userId: "1",
+    }
+  };
+
+  for await (const chunk of await graph.stream(
+    { messages: [{ role: "user", content: "Hi! Remember: my name is Bob" }] },
+    { ...config, streamMode: "values" }
+  )) {
+    console.log(chunk.messages.at(-1)?.content);
+  }
+
+  const config2 = {
+    configurable: {
+      thread_id: "2",
+      userId: "1",
+    }
+  };
+
+  for await (const chunk of await graph.stream(
+    { messages: [{ role: "user", content: "what is my name?" }] },
+    { ...config2, streamMode: "values" }
+  )) {
+    console.log(chunk.messages.at(-1)?.content);
+  }
+  ```
+  :::
 </Accordion>
-:::
 
 ### Use semantic search
 
-Enable semantic search in your graph's memory store to let graph agents search for items in the store by semantic similarity.
+Enable semantic search in your graph's memory store to let graph agents search for items by semantic similarity instead of exact matches.
 
 :::python
 ```python
@@ -1058,7 +2596,7 @@ const items = await store.search(["user_123", "memories"], {
 ```
 :::
 
-<Accordion title="Long-term memory with semantic search">
+<Accordion title="Full example: long-term memory with semantic search">
     :::python
 
     ```python
@@ -1175,965 +2713,7 @@ const items = await store.search(["user_123", "memories"], {
     :::
 </Accordion>
 
-## Manage short-term memory
-
-With [short-term memory](#add-short-term-memory) enabled, long conversations can exceed the LLM's context window. Common solutions are:
-
-* [Trim messages](#trim-messages): Remove first or last N messages (before calling LLM)
-* [Delete messages](#delete-messages) from LangGraph state permanently
-* [Summarize messages](#summarize-messages): Summarize earlier messages in the history and replace them with a summary
-* [Manage checkpoints](#manage-checkpoints) to store and retrieve message history
-* Custom strategies (e.g., message filtering, etc.)
-
-This allows the agent to keep track of the conversation without exceeding the LLM's context window.
-
-### Trim messages
-
-:::python
-Most LLMs have a maximum supported context window (denominated in tokens). One way to decide when to truncate messages is to count the tokens in the message history and truncate whenever it approaches that limit. If you're using LangChain, you can use the trim messages utility and specify the number of tokens to keep from the list, as well as the `strategy` (e.g., keep the last `max_tokens`) to use for handling the boundary.
-:::
-:::js
-Most LLMs have a maximum supported context window (denominated in tokens). One way to decide when to truncate messages is to count the tokens in the message history and truncate whenever it approaches that limit. If you're using LangChain, you can use the trim messages utility and specify the number of tokens to keep from the list, as well as the `strategy` (e.g., keep the last `maxTokens`) to use for handling the boundary.
-:::
-
-:::python
-To trim message history, use the [`trim_messages`](https://python.langchain.com/api_reference/core/messages/langchain_core.messages.utils.trim_messages.html) function:
-
-```python
-from langchain_core.messages.utils import (  # [!code highlight]
-    trim_messages,  # [!code highlight]
-    count_tokens_approximately  # [!code highlight]
-)  # [!code highlight]
-
-def call_model(state: MessagesState):
-    messages = trim_messages(  # [!code highlight]
-        state["messages"],
-        strategy="last",
-        token_counter=count_tokens_approximately,
-        max_tokens=128,
-        start_on="human",
-        end_on=("human", "tool"),
-    )
-    response = model.invoke(messages)
-    return {"messages": [response]}
-
-builder = StateGraph(MessagesState)
-builder.add_node(call_model)
-...
-```
-:::
-
-:::js
-To trim message history, use the [`trimMessages`](https://js.langchain.com/docs/how_to/trim_messages/) function:
-
-```typescript
-import { trimMessages } from "@langchain/core/messages";
-
-const callModel = async (state: z.infer<typeof MessagesZodState>) => {
-  const messages = trimMessages(state.messages, {
-    strategy: "last",
-    maxTokens: 128,
-    startOn: "human",
-    endOn: ["human", "tool"],
-  });
-  const response = await model.invoke(messages);
-  return { messages: [response] };
-};
-
-const builder = new StateGraph(MessagesZodState)
-  .addNode("call_model", callModel);
-// ...
-```
-:::
-
-<Accordion title="Full example: trim messages">
-  :::python
-  ```python
-  from langchain_core.messages.utils import (
-      trim_messages,  # [!code highlight]
-      count_tokens_approximately  # [!code highlight]
-  )
-  from langchain.chat_models import init_chat_model
-  from langgraph.graph import StateGraph, START, MessagesState
-
-  model = init_chat_model("claude-sonnet-4-5-20250929")
-  summarization_model = model.bind(max_tokens=128)
-
-  def call_model(state: MessagesState):
-      messages = trim_messages(  # [!code highlight]
-          state["messages"],
-          strategy="last",
-          token_counter=count_tokens_approximately,
-          max_tokens=128,
-          start_on="human",
-          end_on=("human", "tool"),
-      )
-      response = model.invoke(messages)
-      return {"messages": [response]}
-
-  checkpointer = InMemorySaver()
-  builder = StateGraph(MessagesState)
-  builder.add_node(call_model)
-  builder.add_edge(START, "call_model")
-  graph = builder.compile(checkpointer=checkpointer)
-
-  config = {"configurable": {"thread_id": "1"}}
-  graph.invoke({"messages": "hi, my name is bob"}, config)
-  graph.invoke({"messages": "write a short poem about cats"}, config)
-  graph.invoke({"messages": "now do the same but for dogs"}, config)
-  final_response = graph.invoke({"messages": "what's my name?"}, config)
-
-  final_response["messages"][-1].pretty_print()
-```
-
-  ```
-  ================================== Ai Message ==================================
-
-  Your name is Bob, as you mentioned when you first introduced yourself.
-  ```
-  :::
-
-  :::js
-  ```typescript
-  import { trimMessages, BaseMessage } from "@langchain/core/messages";
-  import { ChatAnthropic } from "@langchain/anthropic";
-  import { StateGraph, START, MessagesZodMeta, MemorySaver } from "@langchain/langgraph";
-  import { registry } from "@langchain/langgraph/zod";
-  import * as z from "zod";
-
-  const MessagesZodState = z.object({
-    messages: z
-      .array(z.custom<BaseMessage>())
-      .register(registry, MessagesZodMeta),
-  });
-
-  const model = new ChatAnthropic({ model: "claude-3-5-sonnet-20241022" });
-
-  const callModel = async (state: z.infer<typeof MessagesZodState>) => {
-    const messages = trimMessages(state.messages, {
-      strategy: "last",
-      maxTokens: 128,
-      startOn: "human",
-      endOn: ["human", "tool"],
-      tokenCounter: model,
-    });
-    const response = await model.invoke(messages);
-    return { messages: [response] };
-  };
-
-  const checkpointer = new MemorySaver();
-  const builder = new StateGraph(MessagesZodState)
-    .addNode("call_model", callModel)
-    .addEdge(START, "call_model");
-  const graph = builder.compile({ checkpointer });
-
-  const config = { configurable: { thread_id: "1" } };
-  await graph.invoke({ messages: [{ role: "user", content: "hi, my name is bob" }] }, config);
-  await graph.invoke({ messages: [{ role: "user", content: "write a short poem about cats" }] }, config);
-  await graph.invoke({ messages: [{ role: "user", content: "now do the same but for dogs" }] }, config);
-  const finalResponse = await graph.invoke({ messages: [{ role: "user", content: "what's my name?" }] }, config);
-
-  console.log(finalResponse.messages.at(-1)?.content);
-  ```
-
-  ```
-  Your name is Bob, as you mentioned when you first introduced yourself.
-  ```
-  :::
-</Accordion>
-
-### Delete messages
-
-You can delete messages from the graph state to manage the message history. This is useful when you want to remove specific messages or clear the entire message history.
-
-:::python
-To delete messages from the graph state, you can use the `RemoveMessage`. For `RemoveMessage` to work, you need to use a state key with @[`add_messages`] [reducer](/oss/langgraph/graph-api#reducers), like [`MessagesState`](/oss/langgraph/graph-api#messagesstate).
-
-To remove specific messages:
-
-```python
-from langchain.messages import RemoveMessage  # [!code highlight]
-
-def delete_messages(state):
-    messages = state["messages"]
-    if len(messages) > 2:
-        # remove the earliest two messages
-        return {"messages": [RemoveMessage(id=m.id) for m in messages[:2]]}  # [!code highlight]
-```
-
-To remove **all** messages:
-
-```python
-from langgraph.graph.message import REMOVE_ALL_MESSAGES  # [!code highlight]
-
-def delete_messages(state):
-    return {"messages": [RemoveMessage(id=REMOVE_ALL_MESSAGES)]}  # [!code highlight]
-```
-:::
-
-:::js
-To delete messages from the graph state, you can use the `RemoveMessage`. For `RemoveMessage` to work, you need to use a state key with @[`messagesStateReducer`][messagesStateReducer] [reducer](/oss/langgraph/graph-api#reducers), like `MessagesZodState`.
-
-To remove specific messages:
-
-```typescript
-import { RemoveMessage } from "@langchain/core/messages";
-
-const deleteMessages = (state) => {
-  const messages = state.messages;
-  if (messages.length > 2) {
-    // remove the earliest two messages
-    return {
-      messages: messages
-        .slice(0, 2)
-        .map((m) => new RemoveMessage({ id: m.id })),
-    };
-  }
-};
-```
-:::
-
-<Warning>
-When deleting messages, **make sure** that the resulting message history is valid. Check the limitations of the LLM provider you're using. For example:
-
-* Some providers expect message history to start with a `user` message
-* Most providers require `assistant` messages with tool calls to be followed by corresponding `tool` result messages.
-</Warning>
-
-<Accordion title="Full example: delete messages">
-  :::python
-  ```python
-  from langchain.messages import RemoveMessage  # [!code highlight]
-
-  def delete_messages(state):
-      messages = state["messages"]
-      if len(messages) > 2:
-          # remove the earliest two messages
-          return {"messages": [RemoveMessage(id=m.id) for m in messages[:2]]}  # [!code highlight]
-
-  def call_model(state: MessagesState):
-      response = model.invoke(state["messages"])
-      return {"messages": response}
-
-  builder = StateGraph(MessagesState)
-  builder.add_sequence([call_model, delete_messages])
-  builder.add_edge(START, "call_model")
-
-  checkpointer = InMemorySaver()
-  app = builder.compile(checkpointer=checkpointer)
-
-  for event in app.stream(
-      {"messages": [{"role": "user", "content": "hi! I'm bob"}]},
-      config,
-      stream_mode="values"
-  ):
-      print([(message.type, message.content) for message in event["messages"]])
-
-  for event in app.stream(
-      {"messages": [{"role": "user", "content": "what's my name?"}]},
-      config,
-      stream_mode="values"
-  ):
-      print([(message.type, message.content) for message in event["messages"]])
-```
-
-  ```
-  [('human', "hi! I'm bob")]
-  [('human', "hi! I'm bob"), ('ai', 'Hi Bob! How are you doing today? Is there anything I can help you with?')]
-  [('human', "hi! I'm bob"), ('ai', 'Hi Bob! How are you doing today? Is there anything I can help you with?'), ('human', "what's my name?")]
-  [('human', "hi! I'm bob"), ('ai', 'Hi Bob! How are you doing today? Is there anything I can help you with?'), ('human', "what's my name?"), ('ai', 'Your name is Bob.')]
-  [('human', "what's my name?"), ('ai', 'Your name is Bob.')]
-  ```
-  :::
-
-  :::js
-  ```typescript
-  import { RemoveMessage, BaseMessage } from "@langchain/core/messages";
-  import { ChatAnthropic } from "@langchain/anthropic";
-  import { StateGraph, START, MemorySaver, MessagesZodMeta } from "@langchain/langgraph";
-  import * as z from "zod";
-  import { registry } from "@langchain/langgraph/zod";
-
-  const MessagesZodState = z.object({
-    messages: z
-      .array(z.custom<BaseMessage>())
-      .register(registry, MessagesZodMeta),
-  });
-
-  const model = new ChatAnthropic({ model: "claude-3-5-sonnet-20241022" });
-
-  const deleteMessages = (state: z.infer<typeof MessagesZodState>) => {
-    const messages = state.messages;
-    if (messages.length > 2) {
-      // remove the earliest two messages
-      return { messages: messages.slice(0, 2).map(m => new RemoveMessage({ id: m.id })) };
-    }
-    return {};
-  };
-
-  const callModel = async (state: z.infer<typeof MessagesZodState>) => {
-    const response = await model.invoke(state.messages);
-    return { messages: [response] };
-  };
-
-  const builder = new StateGraph(MessagesZodState)
-    .addNode("call_model", callModel)
-    .addNode("delete_messages", deleteMessages)
-    .addEdge(START, "call_model")
-    .addEdge("call_model", "delete_messages");
-
-  const checkpointer = new MemorySaver();
-  const app = builder.compile({ checkpointer });
-
-  const config = { configurable: { thread_id: "1" } };
-
-  for await (const event of await app.stream(
-    { messages: [{ role: "user", content: "hi! I'm bob" }] },
-    { ...config, streamMode: "values" }
-  )) {
-    console.log(event.messages.map(message => [message.getType(), message.content]));
-  }
-
-  for await (const event of await app.stream(
-    { messages: [{ role: "user", content: "what's my name?" }] },
-    { ...config, streamMode: "values" }
-  )) {
-    console.log(event.messages.map(message => [message.getType(), message.content]));
-  }
-  ```
-
-  ```
-  [['human', "hi! I'm bob"]]
-  [['human', "hi! I'm bob"], ['ai', 'Hi Bob! How are you doing today? Is there anything I can help you with?']]
-  [['human', "hi! I'm bob"], ['ai', 'Hi Bob! How are you doing today? Is there anything I can help you with?'], ['human', "what's my name?"]]
-  [['human', "hi! I'm bob"], ['ai', 'Hi Bob! How are you doing today? Is there anything I can help you with?'], ['human', "what's my name?"], ['ai', 'Your name is Bob.']]
-  [['human', "what's my name?"], ['ai', 'Your name is Bob.']]
-  ```
-  :::
-</Accordion>
-
-### Summarize messages
-
-The problem with trimming or removing messages, as shown above, is that you may lose information from culling of the message queue. Because of this, some applications benefit from a more sophisticated approach of summarizing the message history using a chat model.
-
-![](/oss/images/summary.png)
-
-
-:::python
-Prompting and orchestration logic can be used to summarize the message history. For example, in LangGraph you can extend the [`MessagesState`](/oss/langgraph/graph-api#working-with-messages-in-graph-state) to include a `summary` key:
-
-```python
-from langgraph.graph import MessagesState
-class State(MessagesState):
-    summary: str
-```
-
-Then, you can generate a summary of the chat history, using any existing summary as context for the next summary. This `summarize_conversation` node can be called after some number of messages have accumulated in the `messages` state key.
-
-```python
-def summarize_conversation(state: State):
-
-    # First, we get any existing summary
-    summary = state.get("summary", "")
-
-    # Create our summarization prompt
-    if summary:
-
-        # A summary already exists
-        summary_message = (
-            f"This is a summary of the conversation to date: {summary}\n\n"
-            "Extend the summary by taking into account the new messages above:"
-        )
-
-    else:
-        summary_message = "Create a summary of the conversation above:"
-
-    # Add prompt to our history
-    messages = state["messages"] + [HumanMessage(content=summary_message)]
-    response = model.invoke(messages)
-
-    # Delete all but the 2 most recent messages
-    delete_messages = [RemoveMessage(id=m.id) for m in state["messages"][:-2]]
-    return {"summary": response.content, "messages": delete_messages}
-```
-:::
-
-:::js
-Prompting and orchestration logic can be used to summarize the message history. For example, in LangGraph you can include a `summary` key in the state alongside the `messages` key:
-
-```typescript
-import { BaseMessage } from "@langchain/core/messages";
-import { MessagesZodMeta } from "@langchain/langgraph";
-import { registry } from "@langchain/langgraph/zod";
-import * as z from "zod";
-
-const State = z.object({
-  messages: z
-    .array(z.custom<BaseMessage>())
-    .register(registry, MessagesZodMeta),
-  summary: z.string().optional(),
-});
-```
-
-Then, you can generate a summary of the chat history, using any existing summary as context for the next summary. This `summarizeConversation` node can be called after some number of messages have accumulated in the `messages` state key.
-
-```typescript
-import { RemoveMessage, HumanMessage } from "@langchain/core/messages";
-
-const summarizeConversation = async (state: z.infer<typeof State>) => {
-  // First, we get any existing summary
-  const summary = state.summary || "";
-
-  // Create our summarization prompt
-  let summaryMessage: string;
-  if (summary) {
-    // A summary already exists
-    summaryMessage =
-      `This is a summary of the conversation to date: ${summary}\n\n` +
-      "Extend the summary by taking into account the new messages above:";
-  } else {
-    summaryMessage = "Create a summary of the conversation above:";
-  }
-
-  // Add prompt to our history
-  const messages = [
-    ...state.messages,
-    new HumanMessage({ content: summaryMessage })
-  ];
-  const response = await model.invoke(messages);
-
-  // Delete all but the 2 most recent messages
-  const deleteMessages = state.messages
-    .slice(0, -2)
-    .map(m => new RemoveMessage({ id: m.id }));
-
-  return {
-    summary: response.content,
-    messages: deleteMessages
-  };
-};
-```
-:::
-
-<Accordion title="Full example: summarize messages">
-  :::python
-  ```python
-  from typing import Any, TypedDict
-
-  from langchain.chat_models import init_chat_model
-  from langchain.messages import AnyMessage
-  from langchain_core.messages.utils import count_tokens_approximately
-  from langgraph.graph import StateGraph, START, MessagesState
-  from langgraph.checkpoint.memory import InMemorySaver
-  from langmem.short_term import SummarizationNode, RunningSummary  # [!code highlight]
-
-  model = init_chat_model("claude-sonnet-4-5-20250929")
-  summarization_model = model.bind(max_tokens=128)
-
-  class State(MessagesState):
-      context: dict[str, RunningSummary]  # [!code highlight]
-
-  class LLMInputState(TypedDict):  # [!code highlight]
-      summarized_messages: list[AnyMessage]
-      context: dict[str, RunningSummary]
-
-  summarization_node = SummarizationNode(  # [!code highlight]
-      token_counter=count_tokens_approximately,
-      model=summarization_model,
-      max_tokens=256,
-      max_tokens_before_summary=256,
-      max_summary_tokens=128,
-  )
-
-  def call_model(state: LLMInputState):  # [!code highlight]
-      response = model.invoke(state["summarized_messages"])
-      return {"messages": [response]}
-
-  checkpointer = InMemorySaver()
-  builder = StateGraph(State)
-  builder.add_node(call_model)
-  builder.add_node("summarize", summarization_node)  # [!code highlight]
-  builder.add_edge(START, "summarize")
-  builder.add_edge("summarize", "call_model")
-  graph = builder.compile(checkpointer=checkpointer)
-
-  # Invoke the graph
-  config = {"configurable": {"thread_id": "1"}}
-  graph.invoke({"messages": "hi, my name is bob"}, config)
-  graph.invoke({"messages": "write a short poem about cats"}, config)
-  graph.invoke({"messages": "now do the same but for dogs"}, config)
-  final_response = graph.invoke({"messages": "what's my name?"}, config)
-
-  final_response["messages"][-1].pretty_print()
-  print("\nSummary:", final_response["context"]["running_summary"].summary)
-```
-
-  1. We will keep track of our running summary in the `context` field
-
-  (expected by the `SummarizationNode`).
-
-  1. Define private state that will be used only for filtering
-
-  the inputs to `call_model` node.
-
-  1. We're passing a private input state here to isolate the messages returned by the summarization node
-
-  ```
-  ================================== Ai Message ==================================
-
-  From our conversation, I can see that you introduced yourself as Bob. That's the name you shared with me when we began talking.
-
-  Summary: In this conversation, I was introduced to Bob, who then asked me to write a poem about cats. I composed a poem titled "The Mystery of Cats" that captured cats' graceful movements, independent nature, and their special relationship with humans. Bob then requested a similar poem about dogs, so I wrote "The Joy of Dogs," which highlighted dogs' loyalty, enthusiasm, and loving companionship. Both poems were written in a similar style but emphasized the distinct characteristics that make each pet special.
-  ```
-  :::
-
-  :::js
-  ```typescript
-  import { ChatAnthropic } from "@langchain/anthropic";
-  import {
-    SystemMessage,
-    HumanMessage,
-    RemoveMessage,
-    type BaseMessage
-  } from "@langchain/core/messages";
-  import {
-    MessagesZodMeta,
-    StateGraph,
-    START,
-    END,
-    MemorySaver,
-  } from "@langchain/langgraph";
-  import { BaseMessage } from "@langchain/core/messages";
-  import { registry } from "@langchain/langgraph/zod";
-  import * as z from "zod";
-  import { v4 as uuidv4 } from "uuid";
-
-  const memory = new MemorySaver();
-
-  // We will add a `summary` attribute (in addition to `messages` key,
-  // which MessagesZodState already has)
-  const GraphState = z.object({
-    messages: z
-      .array(z.custom<BaseMessage>())
-      .register(registry, MessagesZodMeta),
-    summary: z.string().default(""),
-  });
-
-  // We will use this model for both the conversation and the summarization
-  const model = new ChatAnthropic({ model: "claude-haiku-4-5-20251001" });
-
-  // Define the logic to call the model
-  const callModel = async (state: z.infer<typeof GraphState>) => {
-    // If a summary exists, we add this in as a system message
-    const { summary } = state;
-    let { messages } = state;
-    if (summary) {
-      const systemMessage = new SystemMessage({
-        id: uuidv4(),
-        content: `Summary of conversation earlier: ${summary}`,
-      });
-      messages = [systemMessage, ...messages];
-    }
-    const response = await model.invoke(messages);
-    // We return an object, because this will get added to the existing state
-    return { messages: [response] };
-  };
-
-  // We now define the logic for determining whether to end or summarize the conversation
-  const shouldContinue = (state: z.infer<typeof GraphState>) => {
-    const messages = state.messages;
-    // If there are more than six messages, then we summarize the conversation
-    if (messages.length > 6) {
-      return "summarize_conversation";
-    }
-    // Otherwise we can just end
-    return END;
-  };
-
-  const summarizeConversation = async (state: z.infer<typeof GraphState>) => {
-    // First, we summarize the conversation
-    const { summary, messages } = state;
-    let summaryMessage: string;
-    if (summary) {
-      // If a summary already exists, we use a different system prompt
-      // to summarize it than if one didn't
-      summaryMessage =
-        `This is summary of the conversation to date: ${summary}\n\n` +
-        "Extend the summary by taking into account the new messages above:";
-    } else {
-      summaryMessage = "Create a summary of the conversation above:";
-    }
-
-    const allMessages = [
-      ...messages,
-      new HumanMessage({ id: uuidv4(), content: summaryMessage }),
-    ];
-
-    const response = await model.invoke(allMessages);
-
-    // We now need to delete messages that we no longer want to show up
-    // I will delete all but the last two messages, but you can change this
-    const deleteMessages = messages
-      .slice(0, -2)
-      .map((m) => new RemoveMessage({ id: m.id! }));
-
-    if (typeof response.content !== "string") {
-      throw new Error("Expected a string response from the model");
-    }
-
-    return { summary: response.content, messages: deleteMessages };
-  };
-
-  // Define a new graph
-  const workflow = new StateGraph(GraphState)
-    // Define the conversation node and the summarize node
-    .addNode("conversation", callModel)
-    .addNode("summarize_conversation", summarizeConversation)
-    // Set the entrypoint as conversation
-    .addEdge(START, "conversation")
-    // We now add a conditional edge
-    .addConditionalEdges(
-      // First, we define the start node. We use `conversation`.
-      // This means these are the edges taken after the `conversation` node is called.
-      "conversation",
-      // Next, we pass in the function that will determine which node is called next.
-      shouldContinue,
-    )
-    // We now add a normal edge from `summarize_conversation` to END.
-    // This means that after `summarize_conversation` is called, we end.
-    .addEdge("summarize_conversation", END);
-
-  // Finally, we compile it!
-  const app = workflow.compile({ checkpointer: memory });
-  ```
-  :::
-</Accordion>
-
-### Manage checkpoints
-
-You can view and delete the information stored by the checkpointer.
-
-<a id="checkpoint"></a>
-#### View thread state
-
-:::python
-<Tabs>
-    <Tab title="Graph/Functional API">
-    ```python
-    config = {
-        "configurable": {
-            "thread_id": "1",  # [!code highlight]
-            # optionally provide an ID for a specific checkpoint,
-            # otherwise the latest checkpoint is shown
-            # "checkpoint_id": "1f029ca3-1f5b-6704-8004-820c16b69a5a"  # [!code highlight]
-
-        }
-    }
-    graph.get_state(config)  # [!code highlight]
-```
-
-    ```
-    StateSnapshot(
-        values={'messages': [HumanMessage(content="hi! I'm bob"), AIMessage(content='Hi Bob! How are you doing today?), HumanMessage(content="what's my name?"), AIMessage(content='Your name is Bob.')]}, next=(),
-        config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1f5b-6704-8004-820c16b69a5a'}},
-        metadata={
-            'source': 'loop',
-            'writes': {'call_model': {'messages': AIMessage(content='Your name is Bob.')}},
-            'step': 4,
-            'parents': {},
-            'thread_id': '1'
-        },
-        created_at='2025-05-05T16:01:24.680462+00:00',
-        parent_config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1790-6b0a-8003-baf965b6a38f'}},
-        tasks=(),
-        interrupts=()
-    )
-    ```
-    </Tab>
-    <Tab title="Checkpointer API">
-    ```python
-    config = {
-        "configurable": {
-            "thread_id": "1",  # [!code highlight]
-            # optionally provide an ID for a specific checkpoint,
-            # otherwise the latest checkpoint is shown
-            # "checkpoint_id": "1f029ca3-1f5b-6704-8004-820c16b69a5a"  # [!code highlight]
-
-        }
-    }
-    checkpointer.get_tuple(config)  # [!code highlight]
-```
-
-    ```
-    CheckpointTuple(
-        config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1f5b-6704-8004-820c16b69a5a'}},
-        checkpoint={
-            'v': 3,
-            'ts': '2025-05-05T16:01:24.680462+00:00',
-            'id': '1f029ca3-1f5b-6704-8004-820c16b69a5a',
-            'channel_versions': {'__start__': '00000000000000000000000000000005.0.5290678567601859', 'messages': '00000000000000000000000000000006.0.3205149138784782', 'branch:to:call_model': '00000000000000000000000000000006.0.14611156755133758'}, 'versions_seen': {'__input__': {}, '__start__': {'__start__': '00000000000000000000000000000004.0.5736472536395331'}, 'call_model': {'branch:to:call_model': '00000000000000000000000000000005.0.1410174088651449'}},
-            'channel_values': {'messages': [HumanMessage(content="hi! I'm bob"), AIMessage(content='Hi Bob! How are you doing today?), HumanMessage(content="what's my name?"), AIMessage(content='Your name is Bob.')]},
-        },
-        metadata={
-            'source': 'loop',
-            'writes': {'call_model': {'messages': AIMessage(content='Your name is Bob.')}},
-            'step': 4,
-            'parents': {},
-            'thread_id': '1'
-        },
-        parent_config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1790-6b0a-8003-baf965b6a38f'}},
-        pending_writes=[]
-    )
-    ```
-    </Tab>
-</Tabs>
-:::
-
-:::js
-```typescript
-const config = {
-  configurable: {
-    thread_id: "1",
-    // optionally provide an ID for a specific checkpoint,
-    // otherwise the latest checkpoint is shown
-    // checkpoint_id: "1f029ca3-1f5b-6704-8004-820c16b69a5a"
-  },
-};
-await graph.getState(config);
-```
-
-```
-{
-  values: { messages: [HumanMessage(...), AIMessage(...), HumanMessage(...), AIMessage(...)] },
-  next: [],
-  config: { configurable: { thread_id: '1', checkpoint_ns: '', checkpoint_id: '1f029ca3-1f5b-6704-8004-820c16b69a5a' } },
-  metadata: {
-    source: 'loop',
-    writes: { call_model: { messages: AIMessage(...) } },
-    step: 4,
-    parents: {},
-    thread_id: '1'
-  },
-  createdAt: '2025-05-05T16:01:24.680462+00:00',
-  parentConfig: { configurable: { thread_id: '1', checkpoint_ns: '', checkpoint_id: '1f029ca3-1790-6b0a-8003-baf965b6a38f' } },
-  tasks: [],
-  interrupts: []
-}
-```
-:::
-
-<a id="checkpoints"></a>
-#### View the history of the thread
-
-:::python
-<Tabs>
-    <Tab title="Graph/Functional API">
-    ```python
-    config = {
-        "configurable": {
-            "thread_id": "1"  # [!code highlight]
-        }
-    }
-    list(graph.get_state_history(config))  # [!code highlight]
-```
-
-    ```
-    [
-        StateSnapshot(
-            values={'messages': [HumanMessage(content="hi! I'm bob"), AIMessage(content='Hi Bob! How are you doing today? Is there anything I can help you with?'), HumanMessage(content="what's my name?"), AIMessage(content='Your name is Bob.')]},
-            next=(),
-            config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1f5b-6704-8004-820c16b69a5a'}},
-            metadata={'source': 'loop', 'writes': {'call_model': {'messages': AIMessage(content='Your name is Bob.')}}, 'step': 4, 'parents': {}, 'thread_id': '1'},
-            created_at='2025-05-05T16:01:24.680462+00:00',
-            parent_config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1790-6b0a-8003-baf965b6a38f'}},
-            tasks=(),
-            interrupts=()
-        ),
-        StateSnapshot(
-            values={'messages': [HumanMessage(content="hi! I'm bob"), AIMessage(content='Hi Bob! How are you doing today? Is there anything I can help you with?'), HumanMessage(content="what's my name?")]},
-            next=('call_model',),
-            config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1790-6b0a-8003-baf965b6a38f'}},
-            metadata={'source': 'loop', 'writes': None, 'step': 3, 'parents': {}, 'thread_id': '1'},
-            created_at='2025-05-05T16:01:23.863421+00:00',
-            parent_config={...}
-            tasks=(PregelTask(id='8ab4155e-6b15-b885-9ce5-bed69a2c305c', name='call_model', path=('__pregel_pull', 'call_model'), error=None, interrupts=(), state=None, result={'messages': AIMessage(content='Your name is Bob.')}),),
-            interrupts=()
-        ),
-        StateSnapshot(
-            values={'messages': [HumanMessage(content="hi! I'm bob"), AIMessage(content='Hi Bob! How are you doing today? Is there anything I can help you with?')]},
-            next=('__start__',),
-            config={...},
-            metadata={'source': 'input', 'writes': {'__start__': {'messages': [{'role': 'user', 'content': "what's my name?"}]}}, 'step': 2, 'parents': {}, 'thread_id': '1'},
-            created_at='2025-05-05T16:01:23.863173+00:00',
-            parent_config={...}
-            tasks=(PregelTask(id='24ba39d6-6db1-4c9b-f4c5-682aeaf38dcd', name='__start__', path=('__pregel_pull', '__start__'), error=None, interrupts=(), state=None, result={'messages': [{'role': 'user', 'content': "what's my name?"}]}),),
-            interrupts=()
-        ),
-        StateSnapshot(
-            values={'messages': [HumanMessage(content="hi! I'm bob"), AIMessage(content='Hi Bob! How are you doing today? Is there anything I can help you with?')]},
-            next=(),
-            config={...},
-            metadata={'source': 'loop', 'writes': {'call_model': {'messages': AIMessage(content='Hi Bob! How are you doing today? Is there anything I can help you with?')}}, 'step': 1, 'parents': {}, 'thread_id': '1'},
-            created_at='2025-05-05T16:01:23.862295+00:00',
-            parent_config={...}
-            tasks=(),
-            interrupts=()
-        ),
-        StateSnapshot(
-            values={'messages': [HumanMessage(content="hi! I'm bob")]},
-            next=('call_model',),
-            config={...},
-            metadata={'source': 'loop', 'writes': None, 'step': 0, 'parents': {}, 'thread_id': '1'},
-            created_at='2025-05-05T16:01:22.278960+00:00',
-            parent_config={...}
-            tasks=(PregelTask(id='8cbd75e0-3720-b056-04f7-71ac805140a0', name='call_model', path=('__pregel_pull', 'call_model'), error=None, interrupts=(), state=None, result={'messages': AIMessage(content='Hi Bob! How are you doing today? Is there anything I can help you with?')}),),
-            interrupts=()
-        ),
-        StateSnapshot(
-            values={'messages': []},
-            next=('__start__',),
-            config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-0870-6ce2-bfff-1f3f14c3e565'}},
-            metadata={'source': 'input', 'writes': {'__start__': {'messages': [{'role': 'user', 'content': "hi! I'm bob"}]}}, 'step': -1, 'parents': {}, 'thread_id': '1'},
-            created_at='2025-05-05T16:01:22.277497+00:00',
-            parent_config=None,
-            tasks=(PregelTask(id='d458367b-8265-812c-18e2-33001d199ce6', name='__start__', path=('__pregel_pull', '__start__'), error=None, interrupts=(), state=None, result={'messages': [{'role': 'user', 'content': "hi! I'm bob"}]}),),
-            interrupts=()
-        )
-    ]
-    ```
-    </Tab>
-    <Tab title="Checkpointer API">
-    ```python
-    config = {
-        "configurable": {
-            "thread_id": "1"  # [!code highlight]
-        }
-    }
-    list(checkpointer.list(config))  # [!code highlight]
-```
-
-    ```
-    [
-        CheckpointTuple(
-            config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1f5b-6704-8004-820c16b69a5a'}},
-            checkpoint={
-                'v': 3,
-                'ts': '2025-05-05T16:01:24.680462+00:00',
-                'id': '1f029ca3-1f5b-6704-8004-820c16b69a5a',
-                'channel_versions': {'__start__': '00000000000000000000000000000005.0.5290678567601859', 'messages': '00000000000000000000000000000006.0.3205149138784782', 'branch:to:call_model': '00000000000000000000000000000006.0.14611156755133758'},
-                'versions_seen': {'__input__': {}, '__start__': {'__start__': '00000000000000000000000000000004.0.5736472536395331'}, 'call_model': {'branch:to:call_model': '00000000000000000000000000000005.0.1410174088651449'}},
-                'channel_values': {'messages': [HumanMessage(content="hi! I'm bob"), AIMessage(content='Hi Bob! How are you doing today? Is there anything I can help you with?'), HumanMessage(content="what's my name?"), AIMessage(content='Your name is Bob.')]},
-            },
-            metadata={'source': 'loop', 'writes': {'call_model': {'messages': AIMessage(content='Your name is Bob.')}}, 'step': 4, 'parents': {}, 'thread_id': '1'},
-            parent_config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1790-6b0a-8003-baf965b6a38f'}},
-            pending_writes=[]
-        ),
-        CheckpointTuple(
-            config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1790-6b0a-8003-baf965b6a38f'}},
-            checkpoint={
-                'v': 3,
-                'ts': '2025-05-05T16:01:23.863421+00:00',
-                'id': '1f029ca3-1790-6b0a-8003-baf965b6a38f',
-                'channel_versions': {'__start__': '00000000000000000000000000000005.0.5290678567601859', 'messages': '00000000000000000000000000000006.0.3205149138784782', 'branch:to:call_model': '00000000000000000000000000000006.0.14611156755133758'},
-                'versions_seen': {'__input__': {}, '__start__': {'__start__': '00000000000000000000000000000004.0.5736472536395331'}, 'call_model': {'branch:to:call_model': '00000000000000000000000000000005.0.1410174088651449'}},
-                'channel_values': {'messages': [HumanMessage(content="hi! I'm bob"), AIMessage(content='Hi Bob! How are you doing today? Is there anything I can help you with?'), HumanMessage(content="what's my name?")], 'branch:to:call_model': None}
-            },
-            metadata={'source': 'loop', 'writes': None, 'step': 3, 'parents': {}, 'thread_id': '1'},
-            parent_config={...},
-            pending_writes=[('8ab4155e-6b15-b885-9ce5-bed69a2c305c', 'messages', AIMessage(content='Your name is Bob.'))]
-        ),
-        CheckpointTuple(
-            config={...},
-            checkpoint={
-                'v': 3,
-                'ts': '2025-05-05T16:01:23.863173+00:00',
-                'id': '1f029ca3-1790-616e-8002-9e021694a0cd',
-                'channel_versions': {'__start__': '00000000000000000000000000000004.0.5736472536395331', 'messages': '00000000000000000000000000000003.0.7056767754077798', 'branch:to:call_model': '00000000000000000000000000000003.0.22059023329132854'},
-                'versions_seen': {'__input__': {}, '__start__': {'__start__': '00000000000000000000000000000001.0.7040775356287469'}, 'call_model': {'branch:to:call_model': '00000000000000000000000000000002.0.9300422176788571'}},
-                'channel_values': {'__start__': {'messages': [{'role': 'user', 'content': "what's my name?"}]}, 'messages': [HumanMessage(content="hi! I'm bob"), AIMessage(content='Hi Bob! How are you doing today? Is there anything I can help you with?')]}
-            },
-            metadata={'source': 'input', 'writes': {'__start__': {'messages': [{'role': 'user', 'content': "what's my name?"}]}}, 'step': 2, 'parents': {}, 'thread_id': '1'},
-            parent_config={...},
-            pending_writes=[('24ba39d6-6db1-4c9b-f4c5-682aeaf38dcd', 'messages', [{'role': 'user', 'content': "what's my name?"}]), ('24ba39d6-6db1-4c9b-f4c5-682aeaf38dcd', 'branch:to:call_model', None)]
-        ),
-        CheckpointTuple(
-            config={...},
-            checkpoint={
-                'v': 3,
-                'ts': '2025-05-05T16:01:23.862295+00:00',
-                'id': '1f029ca3-178d-6f54-8001-d7b180db0c89',
-                'channel_versions': {'__start__': '00000000000000000000000000000002.0.18673090920108737', 'messages': '00000000000000000000000000000003.0.7056767754077798', 'branch:to:call_model': '00000000000000000000000000000003.0.22059023329132854'},
-                'versions_seen': {'__input__': {}, '__start__': {'__start__': '00000000000000000000000000000001.0.7040775356287469'}, 'call_model': {'branch:to:call_model': '00000000000000000000000000000002.0.9300422176788571'}},
-                'channel_values': {'messages': [HumanMessage(content="hi! I'm bob"), AIMessage(content='Hi Bob! How are you doing today? Is there anything I can help you with?')]}
-            },
-            metadata={'source': 'loop', 'writes': {'call_model': {'messages': AIMessage(content='Hi Bob! How are you doing today? Is there anything I can help you with?')}}, 'step': 1, 'parents': {}, 'thread_id': '1'},
-            parent_config={...},
-            pending_writes=[]
-        ),
-        CheckpointTuple(
-            config={...},
-            checkpoint={
-                'v': 3,
-                'ts': '2025-05-05T16:01:22.278960+00:00',
-                'id': '1f029ca3-0874-6612-8000-339f2abc83b1',
-                'channel_versions': {'__start__': '00000000000000000000000000000002.0.18673090920108737', 'messages': '00000000000000000000000000000002.0.30296526818059655', 'branch:to:call_model': '00000000000000000000000000000002.0.9300422176788571'},
-                'versions_seen': {'__input__': {}, '__start__': {'__start__': '00000000000000000000000000000001.0.7040775356287469'}},
-                'channel_values': {'messages': [HumanMessage(content="hi! I'm bob")], 'branch:to:call_model': None}
-            },
-            metadata={'source': 'loop', 'writes': None, 'step': 0, 'parents': {}, 'thread_id': '1'},
-            parent_config={...},
-            pending_writes=[('8cbd75e0-3720-b056-04f7-71ac805140a0', 'messages', AIMessage(content='Hi Bob! How are you doing today? Is there anything I can help you with?'))]
-        ),
-        CheckpointTuple(
-            config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-0870-6ce2-bfff-1f3f14c3e565'}},
-            checkpoint={
-                'v': 3,
-                'ts': '2025-05-05T16:01:22.277497+00:00',
-                'id': '1f029ca3-0870-6ce2-bfff-1f3f14c3e565',
-                'channel_versions': {'__start__': '00000000000000000000000000000001.0.7040775356287469'},
-                'versions_seen': {'__input__': {}},
-                'channel_values': {'__start__': {'messages': [{'role': 'user', 'content': "hi! I'm bob"}]}}
-            },
-            metadata={'source': 'input', 'writes': {'__start__': {'messages': [{'role': 'user', 'content': "hi! I'm bob"}]}}, 'step': -1, 'parents': {}, 'thread_id': '1'},
-            parent_config=None,
-            pending_writes=[('d458367b-8265-812c-18e2-33001d199ce6', 'messages', [{'role': 'user', 'content': "hi! I'm bob"}]), ('d458367b-8265-812c-18e2-33001d199ce6', 'branch:to:call_model', None)]
-        )
-    ]
-    ```
-    </Tab>
-</Tabs>
-:::
-
-:::js
-```typescript
-const config = {
-  configurable: {
-    thread_id: "1",
-  },
-};
-
-const history = [];
-for await (const state of graph.getStateHistory(config)) {
-  history.push(state);
-}
-```
-:::
-
-#### Delete all checkpoints for a thread
-
-:::python
-```python
-thread_id = "1"
-checkpointer.delete_thread(thread_id)
-```
-:::
-
-:::js
-```typescript
-const threadId = "1";
-await checkpointer.deleteThread(threadId);
-```
-:::
+---
 
 :::python
 ## Prebuilt memory tools
