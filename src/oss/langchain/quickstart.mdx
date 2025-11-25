@@ -540,7 +540,7 @@ const checkpointer = new MemorySaver();
 // Create agent
 const agent = createAgent({
   model,
-  systemPrompt: systemPrompt,
+  systemPrompt,
   tools: [getUserLocation, getWeather],
   responseFormat,
   checkpointer,
