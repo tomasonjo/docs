@@ -1213,10 +1213,130 @@
                       {
                         "group": "Deployment components",
                         "pages": [
-                          "langsmith/components",
-                          "langsmith/agent-server",
-                          "langsmith/data-plane",
-                          "langsmith/control-plane"
+                          "langsmith/background-run",
+                          "langsmith/same-thread",
+                          "langsmith/cron-jobs",
+                          "langsmith/stateless-runs",
+                          "langsmith/configurable-headers"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "group": "Core capabilities",
+                    "pages": [
+                      "langsmith/streaming",
+                      "langsmith/add-human-in-the-loop",
+                      "langsmith/human-in-the-loop-time-travel",
+                      "langsmith/server-mcp",
+                      "langsmith/server-a2a",
+                      "langsmith/use-webhooks",
+                      {
+                        "group": "Double-texting",
+                        "pages": [
+                          "langsmith/double-texting",
+                          "langsmith/interrupt-concurrent",
+                          "langsmith/rollback-concurrent",
+                          "langsmith/reject-concurrent",
+                          "langsmith/enqueue-concurrent"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "group": "Tutorials",
+                    "pages": [
+                      "langsmith/autogen-integration",
+                      "langsmith/use-stream-react",
+                      "langsmith/generative-ui-react"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "Studio",
+                "pages": [
+                  "langsmith/studio",
+                  "langsmith/quick-start-studio",
+                  "langsmith/use-studio",
+                  "langsmith/observability-studio",
+                  "langsmith/troubleshooting-studio"
+                ]
+              },
+              {
+                "group": "Auth & access control",
+                "pages": [
+                  "langsmith/auth",
+                  "langsmith/custom-auth",
+                  "langsmith/set-up-custom-auth",
+                  "langsmith/resource-auth",
+                  "langsmith/add-auth-server",
+                  "langsmith/openapi-security",
+                  "langsmith/agent-auth"
+                ]
+              },
+              {
+                "group": "Server customization",
+                "pages": [
+                    "langsmith/custom-lifespan",
+                    "langsmith/custom-middleware",
+                    "langsmith/custom-routes"
+                ]
+              },
+              {
+                "group": "Reference",
+                "pages": [
+                  "langsmith/remote-graph",
+                  "langsmith/cli",
+                  "langsmith/env-var"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "Agent Builder",
+            "pages": [
+              "langsmith/agent-builder",
+              "langsmith/agent-builder-setup",
+              "langsmith/agent-builder-tools",
+              "langsmith/agent-builder-mcp",
+              "langsmith/agent-builder-auth-format",
+              "langsmith/agent-builder-custom-models",
+              "langsmith/agent-builder-code",
+              "langsmith/agent-builder-templates",
+              "langsmith/agent-builder-workspace-vs-personal"
+            ]
+          },
+          {
+            "tab": "Hosting",
+            "groups": [
+              {
+                "group": "Overview",
+                "pages": [
+                  "langsmith/hosting",
+                  "langsmith/cloud"
+                ]
+              },
+              {
+                "group": "Hybrid",
+                "pages": [
+                  "langsmith/hybrid",
+                  "langsmith/deploy-hybrid"
+                ]
+              },
+              {
+                "group": "Self-hosted",
+                "pages": [
+                  "langsmith/self-hosted",
+                  {
+                    "group": "Setup guides",
+                    "pages": [
+                      {
+                        "group": "LangSmith",
+                        "icon": "server",
+                        "pages": [
+                          "langsmith/kubernetes",
+                          "langsmith/docker"
                         ]
                       },
                       "langsmith/graph-rebuild",

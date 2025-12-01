@@ -1,0 +1,90 @@
+---
+title: Custom models
+description: Use non-default models and custom endpoints with Agent Builder.
+sidebarTitle: Custom models
+mode: wide
+---
+
+Agent Builder defaults to Anthropic Sonnet 4.5, but you can supply your own model ID and API key. You can also point to OpenAI‑compatible endpoints by providing a custom base URL.
+
+## Configure model
+
+Provide a model configuration at run time via `config.configurable.llm_model_config`:
+
+```json
+{
+  "llm_model_config": {
+    "modelId": "openai:gpt-4o-mini",
+    "envVarName": "AGENT_BUILDER_OPENAI_API_KEY",
+    "baseUrl": "https://api.openai.com/v1"
+  }
+}
+```
+
+The platform loads the API key from workspace secrets. Secret lookup prefers names prefixed with `AGENT_BUILDER_` (for example, `AGENT_BUILDER_OPENAI_API_KEY`) and falls back to the unprefixed name (`OPENAI_API_KEY`).
+
+### Defaults
+
+- `modelId`: `anthropic:claude-sonnet-4-5`
+- `envVarName`: `AGENT_BUILDER_ANTHROPIC_API_KEY`
+- `baseUrl`: omitted (uses the provider default)
+
+## Python example
+
+```python
+from langgraph_sdk import get_client
+
+client = get_client(url="https://your-deployment.langgraph.app")
+
+thread = await client.threads.create()
+
+config = {
+    "configurable": {
+        "llm_model_config": {
+            "modelId": "openai:gpt-4o-mini",
+            "envVarName": "AGENT_BUILDER_OPENAI_API_KEY",
+            "baseUrl": "https://api.openai.com/v1",
+        }
+    }
+}
+
+result = await client.runs.create_and_wait(
+    thread_id=thread["thread_id"],
+    assistant_id="your-agent-id",
+    input={"messages": [{"role": "user", "content": "Hello"}]},
+    **config,
+)
+print(result["output"])  # agent response
+```
+
+## JavaScript example
+
+```ts
+import { Client } from "@langchain/langgraph-sdk";
+
+const client = new Client({ apiUrl: "https://your-deployment.langgraph.app" });
+
+const thread = await client.threads.create();
+
+const config = {
+  configurable: {
+    llm_model_config: {
+      modelId: "openai:gpt-4o-mini",
+      envVarName: "AGENT_BUILDER_OPENAI_API_KEY",
+      baseUrl: "https://api.openai.com/v1",
+    },
+  },
+};
+
+const run = await client.runs.createAndWait(
+  thread.thread_id,
+  { assistant_id: "your-agent-id", input: { messages: [{ role: "user", content: "Hello" }] } },
+  config
+);
+console.log(run.output);
+```
+
+<Tip>
+For Anthropic models, Agent Builder enables relevant betas and context‑management features by default.
+</Tip>
+

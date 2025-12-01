@@ -21,6 +21,10 @@ In the [LangSmith UI](https://smith.langchain.com), ensure that your Anthropic A
 
 - `ANTHROPIC_API_KEY`: Required for Agent Builder models. The agent graphs load this key from workspace secrets for inference.
 
+<Callout icon="wand-magic-sparkles" color="#E0F2FE" iconType="regular">
+  Agent Builder supports custom models. You can override the default Anthropic model by providing a different `modelId` and a matching secret name via `envVarName` (see “Custom models” for examples). Secrets prefixed with `AGENT_BUILDER_` are prioritized.
+</Callout>
+
 ## Optional tool keys
 
 Add keys for any tools you enable. These are read from workspace secrets at runtime.
@@ -28,3 +32,12 @@ Add keys for any tools you enable. These are read from workspace secrets at runt
 - `EXA_API_KEY`: Required for Exa search tools (general web and LinkedIn profile search).
 - `TAVILY_API_KEY`: Required for Tavily web search.
 - `TWITTER_API_KEY` and `TWITTER_API_KEY_SECRET`: Required for Twitter/X read operations (app‑only bearer). Posting/media upload is not enabled.
+
+## MCP server configuration
+
+Agent Builder can pull tools from one or more MCP servers.
+
+- Default server URL: set `MCP_SERVER_URL` in the deployment environment to point at your default server. If omitted, the platform uses its built‑in tools server.
+- Per‑server headers: add MCP servers and headers in your workspace (stored server‑side). Agent Builder automatically forwards those headers when fetching tools for the matching server URL.
+
+See “Remote MCP” for a full walkthrough and examples.

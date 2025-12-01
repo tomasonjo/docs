@@ -1,0 +1,67 @@
+---
+title: Remote MCP
+description: Configure Agent Builder to discover tools from remote MCP servers and how headers are applied.
+sidebarTitle: Remote MCP
+mode: wide
+---
+
+Agent Builder discovers tools from Model Context Protocol (MCP) servers and exposes them for your agents. You can point Builder at your own MCP servers and attach headers without hardcoding credentials in prompts or code.
+
+## What it does
+
+- Discovers tools from one or more MCP servers via Streamable HTTP.
+- Automatically attaches per‑server headers stored in your workspace when fetching tools or calling them.
+- Preserves `Authorization` (and any custom) headers for remote servers. It does not rewrite or strip them.
+
+## Configure
+
+There are two parts to configuration:
+
+- Default server URL: set `MCP_SERVER_URL` in the deployment environment. If set, Builder will use this as the default server for tools that do not specify a server.
+- Per‑server headers: add your MCP servers and headers in your workspace. Agent Builder will fetch and apply these headers when contacting the matching server URL.
+
+<Steps>
+  <Step title="Set the default server URL (optional)">
+    In your deployment environment, set `MCP_SERVER_URL` to your default MCP endpoint. The default server is auto‑normalized and suffixed with `/mcp` if needed.
+  </Step>
+  <Step title="Register remote servers + headers">
+    In your LangSmith workspace, add entries for your MCP servers and provide any required headers (for example, `Authorization: Bearer ...`). These are stored securely and applied automatically per server.
+  </Step>
+  <Step title="Reference servers in tools">
+    If you author tools or tool configs for sub‑agents, include `mcp_server_url` next to the tool name to pin the tool to a specific server. When omitted, the default server is used.
+  </Step>
+</Steps>
+
+## Tool selection and metadata
+
+When tools are fetched, Agent Builder enriches each tool with `metadata.mcp_server_url`. If you provide a server URL in your tool configuration, that value is preserved. If not, the default server is applied.
+
+## Headers and auth behavior
+
+- Remote servers: any stored headers for the target server URL are merged and sent. `Authorization` headers are preserved and not mutated.
+- Default (built‑in) server: Agent Builder may attach a short‑lived `X‑Service‑Key` to authenticate internally. Keys are refreshed automatically.
+
+## Example: multi‑server setup
+
+Add two servers in workspace settings (examples):
+
+- `https://mcp.internal.example.com/mcp` with header `Authorization: Bearer {{MCP_TOKEN}}`
+- `https://mcp-public.example.com/mcp` without headers
+
+Then reference servers in tool configs (for sub‑agents):
+
+```json
+{
+  "tools": [
+    { "name": "github_list_pull_requests", "mcp_server_url": "https://mcp.internal.example.com/mcp" },
+    { "name": "tavily_web_search", "mcp_server_url": "https://mcp-public.example.com/mcp" }
+  ]
+}
+```
+
+Agent Builder loads headers for each server and calls tools with the correct auth automatically.
+
+<Tip>
+Use workspace secrets placeholders like <code>{"Authorization": "Bearer {{MCP_TOKEN}}"}</code> when configuring headers. The platform resolves <code>{{MCP_TOKEN}}</code> from your workspace secrets at runtime.
+</Tip>
+

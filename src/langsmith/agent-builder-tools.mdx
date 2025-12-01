@@ -4,9 +4,11 @@ sidebarTitle: Tools
 mode: wide
 ---
 
-Use these built-in tools to give your agents access to email, calendars, chat, project management, search, social, and general web utilities.
+Use these built-in tools to give your agents access to email, calendars, chat, project management, code hosting, spreadsheets/BI, search, social, and general web utilities.
 
-<Note> Google, Slack, Linear, and LinkedIn use OAuth. Exa, Tavily, and Twitter/X use workspace secrets.</Note>
+<Callout icon="circle-info" color="#DCFCE7" iconType="regular">
+  Google, Slack, Linear, GitHub, and LinkedIn use OAuth. Exa, Tavily, and Twitter/X use workspace secrets. BigQuery and Google Sheets use Google OAuth. Pylon uses OAuth or server configuration.
+</Callout>
 
 <CardGroup cols={2}>
   <Card title="Gmail" icon="google">
@@ -74,6 +76,17 @@ Use these built-in tools to give your agents access to email, calendars, chat, p
     </ul>
   </Card>
 
+  <Card title="GitHub" icon="github">
+    PRs, issues, and content
+    <ul>
+      <li>List pull requests</li>
+      <li>Get pull request details</li>
+      <li>Create issues and pull requests</li>
+      <li>Comment on issues and pull requests</li>
+      <li>Read repository files and list directories</li>
+    </ul>
+  </Card>
+
   <div style={{ position: 'relative' }}>
     <Card title="Twitter/X" icon="twitter">
       <ul>
@@ -93,6 +106,30 @@ Use these built-in tools to give your agents access to email, calendars, chat, p
       <li>Read webpage text content</li>
       <li>Extract image URLs and metadata</li>
       <li>Notify user (for confirmations/updates)</li>
+    </ul>
+  </Card>
+
+  <Card title="Google Sheets" icon="google">
+    Spreadsheets
+    <ul>
+      <li>Create spreadsheets</li>
+      <li>Read ranges</li>
+    </ul>
+  </Card>
+
+  <Card title="BigQuery" icon="database">
+    Analytics
+    <ul>
+      <li>Execute SQL queries</li>
+    </ul>
+  </Card>
+
+  <Card title="Pylon" icon="list-check">
+    Issue management
+    <ul>
+      <li>List issues</li>
+      <li>Get issue details</li>
+      <li>Update issues</li>
     </ul>
   </Card>
 </CardGroup>

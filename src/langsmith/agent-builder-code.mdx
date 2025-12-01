@@ -1,0 +1,74 @@
+---
+title: Call agents from code
+description: Invoke Agent Builder agents from Python or JavaScript using the LangGraph SDK.
+sidebarTitle: Call from code
+mode: wide
+---
+
+You can invoke Agent Builder agents from your applications using the LangGraph SDK. Use standard threads and runs APIs and pass optional configuration for models and auth.
+
+## Python
+
+```python
+from langgraph_sdk import get_client
+
+client = get_client(
+    url="https://your-deployment.langgraph.app",
+    # If using custom auth, include required headers
+    headers={"Authorization": "Bearer YOUR_USER_TOKEN"},
+)
+
+thread = await client.threads.create()
+
+run = await client.runs.create_and_wait(
+    thread_id=thread["thread_id"],
+    assistant_id="your-agent-id",
+    input={"messages": [{"role": "user", "content": "Plan a weekly summary"}]},
+    configurable={
+        # Optional: override model (see Custom models)
+        "llm_model_config": {
+            "modelId": "anthropic:claude-sonnet-4-5",
+            "envVarName": "AGENT_BUILDER_ANTHROPIC_API_KEY",
+        }
+    },
+)
+
+print(run["output"])  # agent response
+```
+
+## JavaScript/TypeScript
+
+```ts
+import { Client } from "@langchain/langgraph-sdk";
+
+const client = new Client({
+  apiUrl: "https://your-deployment.langgraph.app",
+  // If using custom auth, include required headers
+  defaultHeaders: { Authorization: `Bearer YOUR_USER_TOKEN` },
+});
+
+const thread = await client.threads.create();
+
+const run = await client.runs.createAndWait(
+  thread.thread_id,
+  {
+    assistant_id: "your-agent-id",
+    input: { messages: [{ role: "user", content: "Draft an update" }] },
+  },
+  {
+    configurable: {
+      llm_model_config: {
+        modelId: "anthropic:claude-sonnet-4-5",
+        envVarName: "AGENT_BUILDER_ANTHROPIC_API_KEY",
+      },
+    },
+  }
+);
+
+console.log(run.output);
+```
+
+<Callout icon="key" color="#FEF3C7" iconType="regular">
+  If you implemented custom authentication, pass your user’s token in headers so the agent can use user‑scoped tools. See “Add custom authentication”.
+</Callout>
+
