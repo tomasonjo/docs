@@ -338,7 +338,9 @@ LINK_MAPS: list[LinkMap] = [
             "Callbacks": "langchain_mcp_adapters/#langchain_mcp_adapters.callbacks.Callbacks",
             "Connection": "langchain_mcp_adapters/#langchain_mcp_adapters.sessions.Connection",
             "McpHttpClientFactory": "langchain_mcp_adapters/#langchain_mcp_adapters.sessions.McpHttpClientFactory",
-            "SSEConnection": "langchain_mcp_adapters/#langchain_mcp_adapters.sessions.SSEConnection",
+            "StdioConnection": "langchain_mcp_adapters/#langchain_mcp_adapters.sessions.StdioConnection",
+            "StreamableHttpConnection": "langchain_mcp_adapters/#langchain_mcp_adapters.sessions.StreamableHttpConnection",
+            "WebsocketConnection": "langchain_mcp_adapters/#langchain_mcp_adapters.sessions.WebsocketConnection",
         },
     },
     {
