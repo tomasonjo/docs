@@ -75,9 +75,9 @@ flowchart LR
 
 This guide demonstrates the **sandwich architecture** to balance performance, controllability, and access to modern model capabilities. The sandwich can achieve sub-700ms latency with some STT and TTS providers while maintaining control over modular components.
 
-### Demo application overview
+### Demo Application Overview
 
-We'll walk through building a voice-based agent using the sandwich architecture. The agent will manage orders for a sandwich shop. The application will demonstrate all three components of the sandwich architecture, using [AssemblyAI](https://www.assemblyai.com/) for STT and [ElevenLabs](https://elevenlabs.io/) for TTS (although adapters can be built for most providers).
+We'll walk through building a voice-based agent using the sandwich architecture. The agent will manage orders for a sandwich shop. The application will demonstrate all three components of the sandwich architecture, using [AssemblyAI](https://www.assemblyai.com/) for STT and [Cartesia](https://cartesia.ai/) for TTS (although adapters can be built for most providers).
 
 An end-to-end reference application is available in the [voice-sandwich-demo](https://github.com/langchain-ai/voice-sandwich-demo) repository. We will walk through that application here.
 
@@ -101,7 +101,7 @@ The demo implements a streaming pipeline where each stage processes data asynchr
 - Orchestrates the three-step pipeline:
   - [Speech-to-text (STT)](#1-speech-to-text): Forwards audio to the STT provider (e.g., AssemblyAI), receives transcript events
   - [Agent](#2-langchain-agent): Processes transcripts with LangChain agent, streams response tokens
-  - [Text-to-speech (TTS)](#3-text-to-speech): Sends agent responses to the TTS provider (e.g., ElevenLabs), receives audio chunks
+  - [Text-to-speech (TTS)](#3-text-to-speech): Sends agent responses to the TTS provider (e.g., Cartesia), receives audio chunks
 
 - Returns synthesized audio to the client for playback
 
@@ -334,7 +334,7 @@ The TTS stage synthesizes agent response text into audio and streams it back to 
 - **Upstream processing**: Passes through all events and sends agent text chunks to the TTS provider
 - **Audio reception**: Receives synthesized audio chunks from the TTS provider
 
-**Streaming TTS**: Some providers (such as [ElevenLabs](https://elevenlabs.io/)) begin synthesizing audio as soon as it receives text, enabling audio playback to start before the agent finishes generating its complete response.
+**Streaming TTS**: Some providers (such as [Cartesia](https://cartesia.ai/)) begin synthesizing audio as soon as it receives text, enabling audio playback to start before the agent finishes generating its complete response.
 
 **Event Passthrough**: All upstream events flow through unchanged, allowing the client or other observers to track the full pipeline state.
 
@@ -343,15 +343,15 @@ The TTS stage synthesizes agent response text into audio and streams it back to 
 
 
 ```typescript
-import { ElevenLabsTTS } from "./elevenlabs";
+import { CartesiaTTS } from "./cartesia";
 
 async function* ttsStream(
   eventStream: AsyncIterable<VoiceAgentEvent>
 ): AsyncGenerator<VoiceAgentEvent> {
-  const tts = new ElevenLabsTTS();
+  const tts = new CartesiaTTS();
   const passthrough = writableIterator<VoiceAgentEvent>();
 
-  // Producer: read upstream events and send text to ElevenLabs
+  // Producer: read upstream events and send text to Cartesia
   const producer = (async () => {
     try {
       for await (const event of eventStream) {
@@ -365,7 +365,7 @@ async function* ttsStream(
     }
   })();
 
-  // Consumer: receive audio from ElevenLabs
+  // Consumer: receive audio from Cartesia
   const consumer = (async () => {
     for await (const event of tts.receiveEvents()) {
       passthrough.push(event);
@@ -382,14 +382,14 @@ async function* ttsStream(
 ```
 
 
-The application implements an ElevenLabs client to manage the WebSocket connection and audio streaming. See below for implementations; similar adapters can be constructed for other TTS providers.
+The application implements an Cartesia client to manage the WebSocket connection and audio streaming. See below for implementations; similar adapters can be constructed for other TTS providers.
 
-<Accordion title="ElevenLabs Client">
+<Accordion title="Cartesia Client">
 
 
 
 ```typescript
-export class ElevenLabsTTS {
+export class CartesiaTTS {
   protected _bufferIterator = writableIterator<VoiceAgentEvent.TTSEvent>();
   protected _connectionPromise: Promise<WebSocket> | null = null;
 
@@ -405,45 +405,37 @@ export class ElevenLabsTTS {
     yield* this._bufferIterator;
   }
 
+  protected _generateContextId(): string {
+    const timestamp = Date.now();
+    const counter = this._contextCounter++;
+    return `ctx_${timestamp}_${counter}`;
+  }
+
   protected get _connection(): Promise<WebSocket> {
     if (this._connectionPromise) return this._connectionPromise;
 
     this._connectionPromise = new Promise((resolve, reject) => {
-      const url = `wss://api.elevenlabs.io/v1/text-to-speech/${this.voiceId}/stream-input?model_id=${this.modelId}&output_format=${this.outputFormat}`;
+      const params = new URLSearchParams({
+        api_key: this.apiKey,
+        cartesia_version: this.cartesiaVersion,
+      });
+      const url = `wss://api.cartesia.ai/tts/websocket?${params.toString()}`;
       const ws = new WebSocket(url);
 
       ws.on("open", () => {
-        // Send initial configuration
-        const bosMessage = {
-          text: " ",
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-          },
-          xi_api_key: this.apiKey,
-        };
-        ws.send(JSON.stringify(bosMessage));
         resolve(ws);
       });
 
-      ws.on("message", (data) => {
-        const message = JSON.parse(data.toString());
-
-        // Decode and push audio chunks
-        if (message.audio) {
-          const audioChunk = Buffer.from(message.audio, "base64");
-          if (audioChunk.length > 0) {
-            this._bufferIterator.push({
-              type: "tts_chunk",
-              audio: new Uint8Array(audioChunk),
-              ts: Date.now()
-            });
-          }
-        }
-
-        // Close iterator on final message
-        if (message.isFinal) {
-          this._bufferIterator.cancel();
+      ws.on("message", (data: WebSocket.RawData) => {
+        const message: CartesiaTTSResponse = JSON.parse(data.toString());
+        if (message.data) {
+          this._bufferIterator.push({
+            type: "tts_chunk",
+            audio: message.data,
+            ts: Date.now(),
+          });
+        } else if (message.error) {
+          throw new Error(`Cartesia error: ${message.error}`);
         }
       });
     });
