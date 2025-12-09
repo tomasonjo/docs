@@ -7,12 +7,6 @@
   * [`Python reference`](https://reference.langchain.com/python/)
   * [`JavaScript/TypeScript reference`](https://reference.langchain.com/javascript/)
 
-> [!IMPORTANT]
->
-> The LangSmith API and [SDK](https://github.com/langchain-ai/langsmith-sdk) references are not yet fully consolidated to this repo. Visit their documentation:
-> * [`HTTP API Reference`](https://api.smith.langchain.com/redoc)
-> * [`JavaScript/TypeScript SDK reference`](https://docs.smith.langchain.com/reference/js)
-
 ---
 
 **Table of contents:**
@@ -61,7 +55,7 @@ pyproject.toml            # Dependencies
 
 # --- reference.langchain.com -----------------------------------------
 reference/                # Reference docs build pipelines
-    dist/                 # Build docs (DO NOT EDIT)
+    dist/                 # Built docs (DO NOT EDIT)
     javascript/           # JS/TS reference build pipeline
     python/               # Python reference build pipeline and source
     package.json          # Vercel commands and dependencies
