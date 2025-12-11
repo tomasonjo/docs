@@ -10,13 +10,24 @@ When developers say they need "multi-agent," they're usually looking for one or 
 * **Distributed development**: Allow different teams to develop and maintain capabilities independently, composing them into a larger system with clear boundaries and independent testing.
 * **Parallelization**: Spawn specialized workers for subtasks and execute them concurrently.
 
-Multi-agent patterns are useful when:
+## When to use
 
 * A single agent has too many [tools](/oss/langchain/tools) and makes poor decisions about which to use.
 * [Context](/oss/concepts/context) or [memory](/oss/langchain/short-term-memory) grows too large for one agent to track effectively.
 * Tasks require **specialization** (e.g., a planner, researcher, math expert).
 * You need to **enforce sequential constraints** — unlocking capabilities only after certain conditions are met.
 * Different teams need to **develop and maintain capabilities independently**.
+
+### Multi-agent context engineering
+
+At the center of multi-agent design is **[context engineering](/oss/langchain/context-engineering)** - deciding what information each agent sees. LangChain gives you fine-grained control over:
+
+* Which parts of the conversation or state are passed to each agent.
+* Specialized prompts tailored to sub-agents.
+* Inclusion/exclusion of intermediate reasoning.
+* Customizing input/output formats per agent.
+
+The quality of your system depends on context engineering. The goal is to ensure that each agent has access to the correct data it needs to perform its task, whether it's acting as a tool or as an active agent.
 
 ## Patterns
 
@@ -32,17 +43,6 @@ There are four main patterns for building multi-agent systems, each suited to di
 <Tip>
     You can mix architectures! For example, a **supervisor** can manage **workflow** sub-graphs, or a **dynamic agent** can invoke **skills** at certain stages.
 </Tip>
-
-### Customize agent context
-
-At the center of multi-agent design is **[context engineering](/oss/langchain/context-engineering)** - deciding what information each agent sees. LangChain gives you fine-grained control over:
-
-* Which parts of the conversation or state are passed to each agent.
-* Specialized prompts tailored to sub-agents.
-* Inclusion/exclusion of intermediate reasoning.
-* Customizing input/output formats per agent.
-
-The quality of your system depends on context engineering. The goal is to ensure that each agent has access to the correct data it needs to perform its task, whether it's acting as a tool or as an active agent.
 
 ## Supervisor
 
@@ -78,7 +78,7 @@ Use the supervisor pattern when you have **multiple distinct domains** (e.g., ca
     Learn how to build a personal assistant using the supervisor pattern, where a central supervisor agent coordinates specialized worker agents.
 </Card>
 
-#### Example
+### Example
 
 The example below shows how a main agent is given access to a single sub-agent via a tool definition:
 
@@ -139,7 +139,7 @@ In this pattern:
 2. The sub-agent runs independently and returns its result.
 3. The main agent receives the result and continues orchestration.
 
-#### Where to customize
+### Where to customize
 
 There are several points where you can control how context is passed between the main agent and its subagents:
 
@@ -148,7 +148,7 @@ There are several points where you can control how context is passed between the
 3. **[Input to the sub-agent](#control-the-input-to-the-sub-agent)**: You can customize this input to better shape how the sub-agent interprets tasks. In the example above, we pass the agent-generated `query` directly.
 4. **[Output from the sub-agent](#control-the-output-from-the-sub-agent)**: This is the response passed back to the main agent. You can adjust what is returned to control how the main agent interprets results. In the example above, we return the final message text, but you could return additional state or metadata.
 
-##### Control the input to the sub-agent
+#### Sub-agent input
 
 There are two main levers to control the input that the main agent passes to a sub-agent:
 
@@ -209,7 +209,7 @@ const callSubagent1 = tool(
 ```
 :::
 
-##### Control the output from the sub-agent
+#### Sub-agent output
 
 Two common strategies for shaping what the main agent receives back from a sub-agent:
 
@@ -336,7 +336,7 @@ At the core, the dynamic agent pattern relies on [persistent state](/oss/langcha
 
 This pattern creates a state machine where each configuration represents a distinct state with its own behavior and capabilities.
 
-#### Example
+### Example
 
 Here's an example showing how agents transition between configurations:
 
@@ -427,7 +427,7 @@ Use the workflow pattern when you have a **fixed sequence** of processing steps,
     - **Document processing**: extract → summarize → translate
     - **Data pipelines**: extract → validate → transform → load
 
-    #### Example
+    ### Example
 
     A document processing pipeline with three types of nodes: a plain function (no agent), a plain agent, and an agent with tools:
 
@@ -582,7 +582,7 @@ Use the workflow pattern when you have a **fixed sequence** of processing steps,
     - **Knowledge bases**: route questions to domain experts
     - **Support systems**: route to billing, technical, or sales specialists
 
-    #### Example
+    ### Example
 
     A knowledge base router that directs questions to specialized agents for LangChain, LangGraph, and DeepAgents:
 
