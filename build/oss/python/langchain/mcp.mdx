@@ -861,7 +861,7 @@ client = MultiServerMCPClient(
 
 ### Elicitation
 
-[Elicitation](https://modelcontextprotocol.io/specification/2025-03-26/client/elicitation) allows MCP servers to request additional input from users during tool execution. Instead of requiring all inputs upfront, servers can interactively ask for information as needed.
+[Elicitation](https://modelcontextprotocol.io/specification/2025-11-25/client/elicitation#elicitation) allows MCP servers to request additional input from users during tool execution. Instead of requiring all inputs upfront, servers can interactively ask for information as needed.
 
 #### Server setup
 
@@ -891,7 +891,7 @@ async def create_profile(name: str, ctx: Context) -> str:
     return "Profile creation cancelled."
 
 if __name__ == "__main__":
-    server.run(transport="streamable-http")
+    server.run(transport="http")
 ```
 
 #### Client setup
