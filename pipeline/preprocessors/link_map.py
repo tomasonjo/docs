@@ -227,6 +227,7 @@ LINK_MAPS: list[LinkMap] = [
             "CachePolicy": "langgraph/types/#langgraph.types.CachePolicy",
             "interrupt": "langgraph/types/#langgraph.types.interrupt",
             "ToolNode": "langgraph/agents/#langgraph.prebuilt.tool_node.ToolNode",
+            "tools_condition": "langgraph/agents/#langgraph.prebuilt.tool_node.tools_condition",
             "AsyncPostgresSaver": "langgraph/checkpoints/#langgraph.checkpoint.postgres.aio.AsyncPostgresSaver",
             "AsyncSqliteSaver": "langgraph/checkpoints/#langgraph.checkpoint.sqlite.aio.AsyncSqliteSaver",
             "BaseCheckpointSaver": "langgraph/checkpoints/#langgraph.checkpoint.base.BaseCheckpointSaver",
