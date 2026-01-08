@@ -1374,6 +1374,12 @@
                     "langsmith/agent-builder-mcp-framework",
                     "langsmith/agent-builder-update-mcp-servers"
                   ]
+                },
+                {
+                  "group": "Additional resources",
+                  "pages": [
+                    "langsmith/agent-builder-pricing-faq"
+                  ]
                 }
               ]
             },
