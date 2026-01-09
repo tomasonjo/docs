@@ -17,18 +17,18 @@ For detailed documentation of all Bedrock features and configurations head to th
 
 ### Integration details
 
-| Class | Package | Serializable | [JS support](https://js.langchain.com/docs/integrations/chat/bedrock) | Downloads | Version |
-| :--- | :--- | :---: |  :---: | :---: | :---: |
-| [ChatBedrock](https://python.langchain.com/api_reference/aws/chat_models/langchain_aws.chat_models.bedrock.ChatBedrock.html) | [langchain-aws](https://python.langchain.com/api_reference/aws/index.html) | beta | ✅ | ![PyPI - Downloads](https://img.shields.io/pypi/dm/langchain-aws?style=flat-square&label=%20) | ![PyPI - Version](https://img.shields.io/pypi/v/langchain-aws?style=flat-square&label=%20) |
-| [ChatBedrockConverse](https://python.langchain.com/api_reference/aws/chat_models/langchain_aws.chat_models.bedrock_converse.ChatBedrockConverse.html) | [langchain-aws](https://python.langchain.com/api_reference/aws/index.html) | beta | ✅ | ![PyPI - Downloads](https://img.shields.io/pypi/dm/langchain-aws?style=flat-square&label=%20) | ![PyPI - Version](https://img.shields.io/pypi/v/langchain-aws?style=flat-square&label=%20) |
+| Class | Package | Local | Serializable | [JS support](https://js.langchain.com/docs/integrations/chat/bedrock) | Downloads | Version |
+| :--- | :--- | :---: | :---: |  :---: | :---: | :---: |
+| [ChatBedrock](https://python.langchain.com/api_reference/aws/chat_models/langchain_aws.chat_models.bedrock.ChatBedrock.html) | [langchain-aws](https://python.langchain.com/api_reference/aws/index.html) | ❌ | beta | ✅ | ![PyPI - Downloads](https://img.shields.io/pypi/dm/langchain-aws?style=flat-square&label=%20) | ![PyPI - Version](https://img.shields.io/pypi/v/langchain-aws?style=flat-square&label=%20) |
+| [ChatBedrockConverse](https://python.langchain.com/api_reference/aws/chat_models/langchain_aws.chat_models.bedrock_converse.ChatBedrockConverse.html) | [langchain-aws](https://python.langchain.com/api_reference/aws/index.html) | ❌ | beta | ✅ | ![PyPI - Downloads](https://img.shields.io/pypi/dm/langchain-aws?style=flat-square&label=%20) | ![PyPI - Version](https://img.shields.io/pypi/v/langchain-aws?style=flat-square&label=%20) |
 
 ### Model features
 
 The below apply to both `ChatBedrock` and `ChatBedrockConverse`.
 
-| [Tool calling](/oss/langchain/tools) | [Structured output](/oss/langchain/structured-output) | [Image input](/oss/langchain/messages#multimodal) | Audio input | Video input | [Token-level streaming](/oss/langchain/streaming/) | Native async | [Token usage](/oss/langchain/models#token-usage) | [Logprobs](/oss/langchain/models#log-probabilities) |
-| :---: | :---: | :---: |  :---: | :---: | :---: | :---: | :---: | :---: |
-| ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ |
+| [Tool calling](/oss/langchain/tools) | [Structured output](/oss/langchain/structured-output) | JSON mode | [Image input](/oss/langchain/messages#multimodal) | Audio input | Video input | [Token-level streaming](/oss/langchain/streaming/) | Native async | [Token usage](/oss/langchain/models#token-usage) | [Logprobs](/oss/langchain/models#log-probabilities) |
+| :---: | :---: | :---: | :---: |  :---: | :---: | :---: | :---: | :---: | :---: |
+| ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ |
 
 ## Setup
 
@@ -140,11 +140,40 @@ for chunk in llm.stream(messages):
 |J|'adore la| programmation.||||
 ```
 
-## Extended thinking
+### Streaming tool calls and structured output
+
+By default, the Bedrock Converse API buffers tool call arguments until the JSON is complete before releasing them. This means when using [tool calling](/oss/langchain/tools) or [structured output](/oss/langchain/structured-output), tokens appear to arrive "all at once" rather than streaming incrementally.
+
+<Note>
+This buffering behavior is specific to Bedrock. The direct Anthropic API streams tool call arguments incrementally by default.
+</Note>
+
+To enable real-time streaming of tool call arguments with Anthropic models on Bedrock, you can enable Anthropic's fine-grained tool streaming beta:
+
+```python
+from langchain_aws import ChatBedrockConverse
+
+llm = ChatBedrockConverse(
+    model_id="us.anthropic.claude-sonnet-4-5-20250514-v1:0",
+    additional_model_request_fields={
+        "anthropic_beta": ["fine-grained-tool-streaming-2025-05-14"]
+    }
+)
+```
+
+This enables incremental streaming for:
+- Tool call arguments
+- Structured output via `with_structured_output()` or `response_format`
+
+<Note>
+Fine-grained tool streaming is currently supported on Claude 4.5+ models. See the [Claude documentation](https://platform.claude.com/docs/en/agents-and-tools/tool-use/fine-grained-tool-streaming) for more details.
+</Note>
+
+## Extended Thinking
 
 This guide focuses on implementing Extended Thinking using AWS Bedrock with LangChain's `ChatBedrockConverse` integration.
 
-### Supported models
+### Supported Models
 
 Extended Thinking is available for the following Claude models on AWS Bedrock:
 
