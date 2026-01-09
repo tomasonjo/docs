@@ -142,13 +142,9 @@ for chunk in llm.stream(messages):
 
 ### Streaming tool calls and structured output
 
-By default, the Bedrock Converse API buffers tool call arguments until the JSON is complete before releasing them. This means when using [tool calling](/oss/langchain/tools) or [structured output](/oss/langchain/structured-output), tokens appear to arrive "all at once" rather than streaming incrementally.
+When using [tool calling](/oss/langchain/tools) or [structured output](/oss/langchain/structured-output) with Anthropic models, tool call arguments stream as partial JSON chunks by default.
 
-<Note>
-This buffering behavior is specific to Bedrock. The direct Anthropic API streams tool call arguments incrementally by default.
-</Note>
-
-To enable real-time streaming of tool call arguments with Anthropic models on Bedrock, you can enable Anthropic's fine-grained tool streaming beta:
+To reduce latency and get more evenly distributed chunks, you can enable Anthropic's fine-grained tool streaming beta:
 
 ```python
 from langchain_aws import ChatBedrockConverse
@@ -161,13 +157,13 @@ llm = ChatBedrockConverse(
 )
 ```
 
-This enables incremental streaming for:
-- Tool call arguments
-- Structured output via `with_structured_output()` or `response_format`
-
 <Note>
-Fine-grained tool streaming is currently supported on Claude 4.5+ models. See the [Claude documentation](https://platform.claude.com/docs/en/agents-and-tools/tool-use/fine-grained-tool-streaming) for more details.
+Fine-grained tool streaming is supported on Claude 4.5+ models. See the [Claude documentation](https://platform.claude.com/docs/en/agents-and-tools/tool-use/fine-grained-tool-streaming) for more details.
 </Note>
+
+<Warning>
+When using fine-grained tool streaming, you may receive invalid or partial JSON inputs. Make sure to account for these edge cases in your code.
+</Warning>
 
 ## Extended thinking
 
