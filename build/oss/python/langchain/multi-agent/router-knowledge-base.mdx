@@ -461,6 +461,9 @@ The `route_to_agents` function maps classifications to `Send` objects. Each `Sen
 # Both agents execute simultaneously, each receiving only the query it needs
 ```
 
+
+
+
 Each agent node receives a simple `AgentInput` with just a `query` field—not the full router state. This keeps the interface clean and explicit.
 
 ### Result collection with reducers
@@ -470,6 +473,9 @@ Agent results flow back to the main state via a **reducer**. Each agent returns:
 ```python
 {"results": [{"source": "github", "result": "..."}]}
 ```
+
+
+
 
 The reducer (`operator.add` in Python) concatenates these lists, collecting all parallel results into `state["results"]`.
 

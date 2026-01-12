@@ -1,5 +1,6 @@
 ---
-title: Streaming
+title: Overview
+description: Stream real-time updates from agent runs
 ---
 
 LangChain implements a streaming system to surface real-time updates.
@@ -706,8 +707,8 @@ for stream_mode, data in agent.stream(
 ```shell title="Output"
 Tool response: [{'type': 'text', 'text': "It's always sunny in Boston, U.K.!"}]
 Tool response: [{'type': 'text', 'text': "It's always sunny in San Francisco!"}]
--| **|Boston|**|:| It|’s| always| sunny| in| Boston|,| U|.K|.|
-|-| **|San| Francisco|**|:| It|’s| always| sunny| in| San| Francisco|!|
+-| **|Boston|**|:| It|'s| always| sunny| in| Boston|,| U|.K|.|
+|-| **|San| Francisco|**|:| It|'s| always| sunny| in| San| Francisco|!|
 ```
 
 ### Streaming from sub-agents
@@ -828,11 +829,11 @@ Tool calls: [{'name': 'get_weather', 'args': {'city': 'Boston'}, 'id': 'call_LZ8
 Tool response: [{'type': 'text', 'text': "It's always sunny in Boston!"}]
 Boston| weather| right| now|:| **|Sunny|**|.
 
-|Today|’s| forecast| for| Boston|:| **|Sunny| all| day|**|.|Tool response: [{'type': 'text', 'text': 'Boston weather right now: **Sunny**.\n\nToday’s forecast for Boston: **Sunny all day**.'}]
+|Today|'s| forecast| for| Boston|:| **|Sunny| all| day|**|.|Tool response: [{'type': 'text', 'text': 'Boston weather right now: **Sunny**.\n\nToday's forecast for Boston: **Sunny all day**.'}]
 🤖 supervisor:
 Boston| weather| right| now|:| **|Sunny|**|.
 
-|Today|’s| forecast| for| Boston|:| **|Sunny| all| day|**|.|
+|Today|'s| forecast| for| Boston|:| **|Sunny| all| day|**|.|
 ```
 
 
@@ -873,6 +874,7 @@ See the [LangGraph streaming guide](/oss/python/langgraph/streaming#disable-stre
 
 ## Related
 
+- [Frontend streaming](/oss/python/langchain/streaming/frontend) — Build React UIs with `useStream` for real-time agent interactions
 - [Streaming with chat models](/oss/python/langchain/models#stream) — Stream tokens directly from a chat model without using an agent or graph
 - [Streaming with human-in-the-loop](/oss/python/langchain/human-in-the-loop#streaming-with-hil) — Stream agent progress while handling interrupts for human review
 - [LangGraph streaming](/oss/python/langgraph/streaming) — Advanced streaming options including `values`, `debug` modes, and subgraph streaming
@@ -880,7 +882,7 @@ See the [LangGraph streaming guide](/oss/python/langgraph/streaming#disable-stre
 ---
 
 <Callout icon="pen-to-square" iconType="regular">
-    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/streaming.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/streaming/overview.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
 </Callout>
 <Tip icon="terminal" iconType="regular">
     [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.

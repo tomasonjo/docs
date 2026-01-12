@@ -428,6 +428,8 @@ def transfer_to_sales(runtime: ToolRuntime) -> Command:
 ```
 
 
+
+
 <Note>
 **Why not pass all subagent messages?** While you could include the full subagent conversation in the handoff, this often creates problems. The receiving agent may become confused by irrelevant internal reasoning, and token costs increase unnecessarily. By passing only the handoff pair, you keep the parent graph's context focused on high-level coordination. If the receiving agent needs additional context, consider summarizing the subagent's work in the ToolMessage content instead of passing raw message history.
 </Note>

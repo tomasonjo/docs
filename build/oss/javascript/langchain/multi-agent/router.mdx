@@ -37,20 +37,21 @@ Use `Command` to route to a single specialized agent:
 
 
 ```typescript
+import { z } from "zod";
 import { Command } from "@langchain/langgraph";
 
-interface ClassificationResult {
-  query: string;
-  agent: string;
-}
+const ClassificationResult = z.object({
+  query: z.string(),
+  agent: z.string(),
+});
 
-function classifyQuery(query: string): ClassificationResult {
+function classifyQuery(query: string): z.infer<typeof ClassificationResult> {
   // Use LLM to classify query and determine the appropriate agent
   // Classification logic here
   ...
 }
 
-function routeQuery(state: typeof State.State) {
+function routeQuery(state: z.infer<typeof ClassificationResult>) {
   const classification = classifyQuery(state.query);
 
   // Route to the selected agent
@@ -66,15 +67,16 @@ Use `Send` to fan out to multiple specialized agents in parallel:
 
 
 ```typescript
-import { Send } from "@langchain/langgraph";
+import { z } from "zod";
+import { Command } from "@langchain/langgraph";
 
-interface ClassificationResult {
-  query: string;
-  agent: string;
-}
+const ClassificationResult = z.object({
+  query: z.string(),
+  agent: z.string(),
+});
 
-function classifyQuery(query: string): ClassificationResult[] {
-  // Use LLM to classify query and determine which agents to invoke
+function classifyQuery(query: string): z.infer<typeof ClassificationResult>[] {
+  // Use LLM to classify query and determine the appropriate agent
   // Classification logic here
   ...
 }
@@ -131,15 +133,15 @@ The simplest approach: wrap the stateless router as a tool that a conversational
 ```typescript
 const searchDocs = tool(
   async ({ query }) => {
-    const result = await workflow.invoke({ query });  // [!code highlight]
+    const result = await workflow.invoke({ query }); // [!code highlight]
     return result.finalAnswer;
   },
   {
     name: "search_docs",
     description: "Search across multiple documentation sources",
     schema: z.object({
-      query: z.string().describe("The search query")
-    })
+      query: z.string().describe("The search query"),
+    }),
   }
 );
 
@@ -147,7 +149,7 @@ const searchDocs = tool(
 const conversationalAgent = createAgent({
   model,
   tools: [searchDocs],
-  prompt: "You are a helpful assistant. Use search_docs to answer questions."
+  systemPrompt: "You are a helpful assistant. Use search_docs to answer questions.",
 });
 ```
 

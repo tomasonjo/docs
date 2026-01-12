@@ -126,6 +126,9 @@ class SupportState(AgentState):  # [!code highlight]
     issue_type: NotRequired[Literal["hardware", "software"]]
 ```
 
+
+
+
 The `current_step` field is the core of the state machine pattern - it determines which configuration (prompt + tools) is loaded on each turn.
 
 ## 2. Create tools that manage workflow state
@@ -192,6 +195,9 @@ def provide_solution(solution: str) -> str:
     return f"Solution provided: {solution}"
 ```
 
+
+
+
 Notice how `record_warranty_status` and `record_issue_type` return `Command` objects that update both the data (`warranty_status`, `issue_type`) AND the `current_step`. This is how the state machine works - tools control workflow progression.
 
 ## 3. Define step configurations
@@ -239,6 +245,9 @@ At this step, you need to:
 Be specific and helpful in your solutions."""
 ```
 
+
+
+
 </Accordion>
 
 Then map step names to their configurations using a dictionary:
@@ -263,6 +272,9 @@ STEP_CONFIG = {
     },
 }
 ```
+
+
+
 
 This dictionary-based configuration makes it easy to:
 - See all steps at a glance
@@ -308,6 +320,9 @@ def apply_step_config(
     return handler(request)
 ```
 
+
+
+
 This middleware:
 
 1. **Reads current step**: Gets `current_step` from state (defaults to "warranty_collector").
@@ -343,6 +358,9 @@ agent = create_agent(
     checkpointer=InMemorySaver(),  # [!code highlight]
 )
 ```
+
+
+
 
 <Note>
 **Why a checkpointer?** The checkpointer maintains state across conversation turns. Without it, the `current_step` state would be lost between user messages, breaking the workflow.
@@ -399,6 +417,9 @@ for msg in result['messages']:
     msg.pretty_print()
 ```
 
+
+
+
 Expected flow:
 1. **Warranty verification step**: Asks about warranty status
 2. **Issue classification step**: Asks about the problem, determines it's hardware
@@ -409,6 +430,7 @@ Expected flow:
 Let's trace what happens at each turn:
 
 ### Turn 1: Initial message
+
 ```python
 {
     "messages": [HumanMessage("Hi, my phone screen is cracked")],
@@ -416,11 +438,15 @@ Let's trace what happens at each turn:
 }
 ```
 
+
+
+
 Middleware applies:
 - System prompt: `WARRANTY_COLLECTOR_PROMPT`
 - Tools: `[record_warranty_status]`
 
 ### Turn 2: After warranty recorded
+
 Tool call: `record_warranty_status("in_warranty")` returns:
 ```python
 Command(update={
@@ -429,11 +455,15 @@ Command(update={
 })
 ```
 
+
+
+
 Next turn, middleware applies:
 - System prompt: `ISSUE_CLASSIFIER_PROMPT` (formatted with `warranty_status="in_warranty"`)
 - Tools: `[record_issue_type]`
 
 ### Turn 3: After issue classified
+
 Tool call: `record_issue_type("hardware")` returns:
 ```python
 Command(update={
@@ -441,6 +471,9 @@ Command(update={
     "current_step": "resolution_specialist"  # State transition!
 })
 ```
+
+
+
 
 Next turn, middleware applies:
 - System prompt: `RESOLUTION_SPECIALIST_PROMPT` (formatted with `warranty_status` and `issue_type`)
@@ -472,6 +505,9 @@ agent = create_agent(
     checkpointer=InMemorySaver(),
 )
 ```
+
+
+
 
 See the [short-term memory guide](/oss/python/langchain/short-term-memory) for other memory management techniques.
 
@@ -505,7 +541,11 @@ STEP_CONFIG["resolution_specialist"]["tools"].extend([
 ])
 ```
 
+
+
+
 Update the resolution specialist's prompt to mention these tools:
+
 ```python
 RESOLUTION_SPECIALIST_PROMPT = """You are a customer support agent helping with device issues.
 
@@ -525,7 +565,11 @@ If the customer indicates any information was wrong, use:
 Be specific and helpful in your solutions."""
 ```
 
+
+
+
 Now the agent can handle corrections:
+
 ```python
 result = agent.invoke(
     {"messages": [HumanMessage("Actually, I made a mistake - my device is out of warranty")]},
@@ -534,12 +578,14 @@ result = agent.invoke(
 # Agent will call go_back_to_warranty and restart the warranty verification step
 ```
 
+
+
+
 ## Complete example
 
 Here's everything together in a runnable script:
 
 <Expandable title="Complete code" defaultOpen={false}>
-
 ```python
 """
 Customer Support State Machine Example
@@ -772,6 +818,8 @@ if __name__ == "__main__":
     for msg in result['messages']:
         msg.pretty_print()
 ```
+
+
 
 </Expandable>
 

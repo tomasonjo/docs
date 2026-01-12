@@ -164,7 +164,13 @@
                         "oss/python/langchain/messages",
                         "oss/python/langchain/tools",
                         "oss/python/langchain/short-term-memory",
-                        "oss/python/langchain/streaming",
+                        {
+                          "group": "Streaming",
+                          "pages": [
+                            "oss/python/langchain/streaming/overview",
+                            "oss/python/langchain/streaming/frontend"
+                          ]
+                        },
                         "oss/python/langchain/structured-output"
                       ]
                     },
@@ -503,7 +509,13 @@
                         "oss/javascript/langchain/messages",
                         "oss/javascript/langchain/tools",
                         "oss/javascript/langchain/short-term-memory",
-                        "oss/javascript/langchain/streaming",
+                        {
+                          "group": "Streaming",
+                          "pages": [
+                            "oss/javascript/langchain/streaming/overview",
+                            "oss/javascript/langchain/streaming/frontend"
+                          ]
+                        },
                         "oss/javascript/langchain/structured-output"
                       ]
                     },
@@ -749,7 +761,9 @@
                           "expanded": true,
                           "pages": [
                             "oss/javascript/langchain/multi-agent/subagents-personal-assistant",
-                            "oss/javascript/langchain/multi-agent/router-knowledge-base"
+                            "oss/javascript/langchain/multi-agent/handoffs-customer-support",
+                            "oss/javascript/langchain/multi-agent/router-knowledge-base",
+                            "oss/javascript/langchain/multi-agent/skills-sql-assistant"
                           ]
                         },
                         {
@@ -1300,7 +1314,6 @@
                       "group": "Tutorials",
                       "pages": [
                         "langsmith/deploy-other-frameworks",
-                        "langsmith/use-stream-react",
                         "langsmith/generative-ui-react"
                       ]
                     }
@@ -1850,6 +1863,18 @@
     {
       "source": "/oss/javascript/langchain/middleware",
       "destination": "/oss/javascript/langchain/middleware/overview"
+    },
+    {
+      "source": "/oss/python/langchain/streaming",
+      "destination": "/oss/python/langchain/streaming/overview"
+    },
+    {
+      "source": "/oss/javascript/langchain/streaming",
+      "destination": "/oss/javascript/langchain/streaming/overview"
+    },
+    {
+      "source": "/langsmith/use-stream-react",
+      "destination": "/oss/langchain/streaming/frontend"
     },
     {
       "source": "/oss/python/integrations/tools/toolbox",
