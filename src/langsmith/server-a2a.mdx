@@ -49,7 +49,15 @@ To enable A2A:
 
 This example creates an A2A-compatible agent that processes incoming messages using OpenAI's API and maintains conversational state. The agent defines a message-based state structure and handles the A2A protocol's message format.
 
-To be compatible with the [A2A "text" parts](https://a2a-protocol.org/dev/specification/#651-textpart-object), the agent must have a `messages` key in state. For multi-turn conversations, reuse message.contextId from the prior response. (It’s omitted on the first message only.) Here's an example:
+To be compatible with the [A2A "text" parts](https://a2a-protocol.org/dev/specification/#651-textpart-object), the agent must have a `messages` key in state.
+
+The A2A protocol uses two identifiers to maintain conversational continuity:
+* `contextId`: Groups messages into a conversation thread (like a session ID)
+* `taskId`: Identifies each individual request within that conversation
+
+On the first message, omit `contextId` and `taskId` - the agent will generate and return them. For all subsequent messages in the conversation, include the `contextId` and `taskId` from the prior response to maintain thread continuity.
+
+Here's an example:
 
 ```python
 """LangGraph A2A conversational agent.
@@ -168,8 +176,8 @@ def extract_text(result: dict) -> str:
     return "(no text found)"
 
 
-async def send_message(session, port, assistant_id, text, context_id=None, trace_thread_id=None):
-    """Send an A2A message. Returns (response_text, returned_context_id)."""
+async def send_message(session, port, assistant_id, text, context_id=None, task_id=None):
+    """Send an A2A message. Returns (response_text, returned_context_id, returned_task_id)."""
     url = f"http://127.0.0.1:{port}/a2a/{assistant_id}"
 
     message = {
@@ -178,9 +186,11 @@ async def send_message(session, port, assistant_id, text, context_id=None, trace
         "messageId": str(uuid.uuid4()),
     }
 
-    # A2A multi-turn continuity: reuse contextId across turns/agents
+    # A2A multi-turn continuity: reuse contextId and taskId across turns/agents
     if context_id:
         message["contextId"] = context_id
+    if task_id:
+        message["taskId"] = task_id
 
     payload = {
         "jsonrpc": "2.0",
@@ -189,16 +199,13 @@ async def send_message(session, port, assistant_id, text, context_id=None, trace
         "params": {"message": message},
     }
 
-    # Optional (LangSmith UI grouping): not part of the A2A spec
-    if trace_thread_id:
-        payload["metadata"] = {"thread_id": trace_thread_id}
-
     headers = {"Accept": "application/json"}
     async with session.post(url, json=payload, headers=headers) as response:
         result = await response.json()
 
     returned_context_id = result.get("result", {}).get("contextId") or context_id
-    return extract_text(result), returned_context_id
+    returned_task_id = result.get("result", {}).get("id")
+    return extract_text(result), returned_context_id, returned_task_id
 
 
 async def simulate_conversation():
@@ -212,25 +219,23 @@ async def simulate_conversation():
 
     message = "Hello! Let's have a conversation."
     context_id = None
-
-    # Optional: stable trace grouping even before contextId exists
-    trace_thread_id = str(uuid.uuid4())
+    task_id = None
 
     async with aiohttp.ClientSession() as session:
         for i in range(3):
             print(f"--- Round {i + 1} ---")
 
-            message, context_id = await send_message(
+            message, context_id, task_id = await send_message(
                 session, 2024, agent_a_id, message,
                 context_id=context_id,
-                trace_thread_id=(context_id or trace_thread_id),
+                task_id=task_id,
             )
             print(f"🔵 Agent A: {message}")
 
-            message, context_id = await send_message(
+            message, context_id, task_id = await send_message(
                 session, 2025, agent_b_id, message,
                 context_id=context_id,
-                trace_thread_id=(context_id or trace_thread_id),
+                task_id=task_id,
             )
             print(f"🔴 Agent B: {message}\n")
 
