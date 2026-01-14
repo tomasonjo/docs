@@ -210,6 +210,8 @@ async def send_message(session, port, assistant_id, text, context_id=None, task_
 
 async def simulate_conversation():
     """Simulate a conversation between two agents."""
+
+    #Assistant IDs
     agent_a_id = os.getenv("AGENT_A_ID")
     agent_b_id = os.getenv("AGENT_B_ID")
 
