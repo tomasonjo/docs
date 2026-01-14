@@ -1271,13 +1271,13 @@ Note that currently predictions are billed as additional tokens and will increas
 
 ## Audio output
 
-Some OpenAI models (such as `gpt-4.1-audio-preview`) support generating audio output. This example shows how to use that feature:
+Some OpenAI models (such as `gpt-4o-audio-preview`) support generating audio output. This example shows how to use that feature:
 
 ```typescript
 import { ChatOpenAI } from "@langchain/openai";
 
 const modelWithAudioOutput = new ChatOpenAI({
-  model: "gpt-4.1-audio-preview",
+  model: "gpt-4o-audio-preview",
   // You may also pass these fields to `.bind` as a call argument.
   modalities: ["text", "audio"], // Specifies that the model should output audio.
   audio: {
@@ -1316,7 +1316,7 @@ import { concat } from "@langchain/core/utils/stream"
 import { ChatOpenAI } from "@langchain/openai";
 
 const modelWithStreamingAudioOutput = new ChatOpenAI({
-  model: "gpt-4.1-audio-preview",
+  model: "gpt-4o-audio-preview",
   modalities: ["text", "audio"],
   audio: {
     voice: "alloy",
