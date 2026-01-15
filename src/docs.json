@@ -1375,10 +1375,10 @@
                   "group": "Self-hosted",
                   "pages": [
                     "langsmith/self-hosted",
+                    "langsmith/cloud-provider-guides",
                     {
-                      "group": "Self-hosted cloud guides",
+                      "group": "Self-hosted cloud architecture",
                       "pages": [
-                        "langsmith/cloud-provider-guides",
                         "langsmith/aws-self-hosted",
                         "langsmith/azure-self-hosted",
                         "langsmith/gcp-self-hosted"
