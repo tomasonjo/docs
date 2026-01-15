@@ -960,6 +960,7 @@
                         "langsmith/trace-with-semantic-kernel",
                         "langsmith/trace-with-vercel-ai-sdk",
                         "langsmith/trace-with-livekit",
+                        "langsmith/trace-with-mastra",
                         "langsmith/trace-with-pipecat"
                       ]
                     },
@@ -1234,6 +1235,7 @@
                         "langsmith/setup-app-requirements-txt",
                         "langsmith/setup-pyproject",
                         "langsmith/setup-javascript",
+                        "langsmith/setup-java",
                         "langsmith/monorepo-support"
                         ]
                       },
