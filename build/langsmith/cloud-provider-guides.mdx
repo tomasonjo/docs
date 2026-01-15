@@ -1,0 +1,205 @@
+---
+title: Self-hosted quickstart by cloud provider
+sidebarTitle: Get started by cloud provider
+---
+
+This page quickly navigates you to the documentation for your cloud platform. LangSmith self-hosted works on any Kubernetes cluster, but each cloud provider has specific services and authentication patterns that can optimize your deployment.
+
+## Choose your cloud provider
+
+<CardGroup cols={3}>
+  <Card title="AWS" icon="aws" href="#aws-initial-setup">
+    Amazon Web Services (EKS)
+  </Card>
+  <Card title="GCP" icon="google" href="#gcp-initial-setup">
+    Google Cloud Platform (GKE)
+  </Card>
+  <Card title="Azure" icon="microsoft" href="#azure-initial-setup">
+    Microsoft Azure (AKS)
+  </Card>
+</CardGroup>
+
+## AWS initial setup
+
+<Steps>
+  <Step title="Deploy to Kubernetes">
+    Follow the [Kubernetes installation guide](/langsmith/kubernetes). LangSmith is tested on Amazon Elastic Kubernetes Service (EKS).
+
+    **EKS-specific notes:**
+    - Ensure the EBS CSI Driver is installed for persistent storage
+    - Use the `ebs.csi.aws.com` storage class provisioner
+  </Step>
+
+  <Step title="Configure external services">
+    For production deployments, connect to AWS managed services:
+
+    <CardGroup cols={2}>
+      <Card title="Amazon S3" icon="database" href="/langsmith/self-host-blob-storage#amazon-s3">
+        Store trace data in S3
+      </Card>
+      <Card title="Amazon RDS" icon="database" href="/langsmith/self-host-external-postgres#amazon-rds">
+        PostgreSQL database
+      </Card>
+      <Card title="Amazon ElastiCache" icon="memory" href="/langsmith/self-host-external-redis#amazon-elasticache">
+        Redis for caching
+      </Card>
+      <Card title="ClickHouse Cloud" icon="chart-line" href="/langsmith/self-host-external-clickhouse">
+        Analytics database
+      </Card>
+    </CardGroup>
+  </Step>
+
+  <Step title="Set up authentication">
+    Use [IAM Roles for Service Accounts (IRSA)](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html) to authenticate LangSmith pods to AWS services without static credentials.
+
+    **Key pages:**
+    - [S3 IRSA configuration](/langsmith/self-host-blob-storage#iam-role-for-service-account-recommended)
+    - [RDS IAM authentication](/langsmith/self-host-external-postgres#iam-authentication)
+    - [ElastiCache IAM authentication](/langsmith/self-host-external-redis#iam-authentication)
+  </Step>
+</Steps>
+
+<Callout icon="aws" color="#4F46E5" iconType="solid" size={64}>
+For a reference on self-hosting LangSmith on AWS, view the [AWS architecture guide](/langsmith/aws-self-hosted).
+</Callout>
+
+## GCP initial setup
+
+<Steps>
+  <Step title="Deploy to Kubernetes">
+    Follow the [Kubernetes installation guide](/langsmith/kubernetes). LangSmith is tested on Google Kubernetes Engine (GKE).
+
+    **GKE-specific notes:**
+    - LangSmith works with standard GKE clusters
+    - Use GCE persistent disk storage class
+  </Step>
+
+  <Step title="Configure external services">
+    For production deployments, connect to GCP managed services:
+
+    <CardGroup cols={2}>
+      <Card title="Google Cloud Storage" icon="database" href="/langsmith/self-host-blob-storage#google-cloud-storage">
+        Store trace data in GCS
+      </Card>
+      <Card title="Cloud SQL" icon="database" href="/langsmith/self-host-external-postgres#google-cloud-sql">
+        PostgreSQL database
+      </Card>
+      <Card title="Memorystore" icon="memory" href="/langsmith/self-host-external-redis#google-cloud-memorystore">
+        Redis for caching
+      </Card>
+      <Card title="ClickHouse Cloud" icon="chart-line" href="/langsmith/self-host-external-clickhouse">
+        Analytics database
+      </Card>
+    </CardGroup>
+  </Step>
+
+  <Step title="Set up authentication">
+    Use [Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity) to authenticate LangSmith pods to GCP services.
+
+    **Key pages:**
+    - [GCS HMAC key authentication](/langsmith/self-host-blob-storage#google-cloud-storage)
+    - [Cloud SQL IAM authentication](/langsmith/self-host-external-postgres#iam-authentication)
+    - [Memorystore IAM authentication](/langsmith/self-host-external-redis#iam-authentication)
+  </Step>
+</Steps>
+
+<Callout icon="google" color="#4F46E5" iconType="solid">
+For a reference on self-hosting LangSmith on GCP, view the [GCP architecture guide](/langsmith/gcp-self-hosted).
+</Callout>
+
+## Azure initial setup
+
+<Steps>
+  <Step title="Deploy to Kubernetes">
+    Follow the [Kubernetes installation guide](/langsmith/kubernetes). LangSmith is tested on Azure Kubernetes Service (AKS).
+
+    **AKS-specific notes:**
+    - LangSmith works with standard AKS clusters
+    - Use Azure Disk storage class for persistent volumes
+  </Step>
+
+  <Step title="Configure external services">
+    For production deployments, connect to Azure managed services:
+
+    <CardGroup cols={2}>
+      <Card title="Azure Blob Storage" icon="database" href="/langsmith/self-host-blob-storage#azure-blob-storage">
+        Store trace data in Azure Blob
+      </Card>
+      <Card title="Azure Database" icon="database" href="/langsmith/self-host-external-postgres#azure-database-for-postgresql">
+        PostgreSQL database
+      </Card>
+      <Card title="Azure Cache" icon="memory" href="/langsmith/self-host-external-redis#azure-cache-for-redis">
+        Redis for caching
+      </Card>
+      <Card title="ClickHouse Cloud" icon="chart-line" href="/langsmith/self-host-external-clickhouse">
+        Analytics database
+      </Card>
+    </CardGroup>
+  </Step>
+
+  <Step title="Set up authentication">
+    Use [Azure Workload Identity](https://azure.github.io/azure-workload-identity/docs/introduction.html) to authenticate LangSmith pods to Azure services.
+
+    **Key pages:**
+    - [Azure Blob managed identity](/langsmith/self-host-blob-storage#azure-blob-storage)
+    - [Azure Database Entra authentication](/langsmith/self-host-external-postgres#iam-authentication)
+    - [Azure Cache Entra authentication](/langsmith/self-host-external-redis#iam-authentication)
+  </Step>
+</Steps>
+
+<Callout icon="microsoft" color="#4F46E5" iconType="regular">
+For a reference on self-hosting LangSmith on Azure, view the [Azure architecture guide](/langsmith/azure-self-hosted).
+</Callout>
+
+## Additional resources
+
+### Configuration guides (all clouds)
+
+After completing your cloud-specific setup, configure these features:
+
+<CardGroup cols={2}>
+  <Card title="Scaling" icon="up-right-and-down-left-from-center" href="/langsmith/self-host-scale">
+    Configure autoscaling and resource limits
+  </Card>
+  <Card title="TTL configuration" icon="clock" href="/langsmith/self-host-ttl">
+    Set up data retention policies
+  </Card>
+  <Card title="SSO setup" icon="users" href="/langsmith/self-host-sso">
+    Configure single sign-on
+  </Card>
+  <Card title="TLS certificates" icon="lock" href="/langsmith/self-host-custom-tls-certificates">
+    Set up custom TLS certificates
+  </Card>
+  <Card title="Observability" icon="chart-mixed" href="/langsmith/observability-stack">
+    Monitor your LangSmith deployment
+  </Card>
+  <Card title="Upgrades" icon="arrow-up" href="/langsmith/self-host-upgrades">
+    Keep your installation up to date
+  </Card>
+</CardGroup>
+
+### Deployment methods
+
+<CardGroup cols={2}>
+  <Card title="Kubernetes" icon="dharmachakra" href="/langsmith/kubernetes">
+    Full installation guide for Kubernetes (any cloud)
+  </Card>
+  <Card title="Docker" icon="docker" href="/langsmith/docker">
+    Docker Compose for development/testing
+  </Card>
+</CardGroup>
+
+### Need help?
+
+- [Troubleshooting guide](/langsmith/troubleshooting)
+- [Self-hosted overview](/langsmith/self-hosted)
+- [Support](https://support.langchain.com/)
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/cloud-provider-guides.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
