@@ -1375,9 +1375,8 @@
                   "group": "Self-hosted",
                   "pages": [
                     "langsmith/self-hosted",
-                    "langsmith/cloud-provider-guides",
                     {
-                      "group": "Self-hosted cloud architecture",
+                      "group": "Get started by cloud provider",
                       "pages": [
                         "langsmith/aws-self-hosted",
                         "langsmith/azure-self-hosted",
