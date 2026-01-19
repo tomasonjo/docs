@@ -245,7 +245,7 @@ const SOURCES: Source[] = [
     ],
   },
   {
-    package: "Deep Agents",
+    package: "deepagents",
     path: "libs/deepagents",
     repo: "langchain-ai/deepagentsjs",
     branch: "main",
