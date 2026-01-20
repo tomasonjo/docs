@@ -64,7 +64,11 @@ with Neo4jSaver.from_conn_string(
     password="password"
 ) as checkpointer:
     checkpointer.setup()  # Create indexes (run once)
-    # Compile LangGraph
-    graph = builder.compile(checkpointer=checkpointer)
-    result = graph.invoke({"messages": [...]}, config)
+    # Create agent with checkpointer
+    agent = create_agent(
+        model="anthropic:claude-sonnet-4-5-20250929",
+        tools=[get_weather],
+        system_prompt="You are a helpful assistant",
+        checkpointer=checkpointer
+    )
 ```
