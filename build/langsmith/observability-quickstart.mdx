@@ -1,0 +1,479 @@
+---
+title: Tracing quickstart
+sidebarTitle: Quickstart
+---
+
+import project from '/snippets/langsmith/trace-ingestion-project.mdx';
+
+[_Observability_](/langsmith/observability-concepts) is a critical requirement for applications built with Large Language Models (LLMs). LLMs are non-deterministic, which means that the same prompt can produce different responses. This behavior makes debugging and monitoring more challenging than with traditional software.
+
+LangSmith addresses this by providing end-to-end visibility into each request. Every request generates a [_trace_](/langsmith/observability-concepts#traces), which is a complete record of what happened. Within a trace are individual [_runs_](/langsmith/observability-concepts#runs), the specific operations your application performed, such as an LLM or tool call.
+
+In this quickstart, you will set up a simple agent with [function calling](https://platform.openai.com/docs/guides/function-calling#page-top) (also known as tool calling) that's fully traced in LangSmith.
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- **A LangSmith account**: Sign up or log in at [smith.langchain.com](https://smith.langchain.com).
+- **A LangSmith API key**: Create an API key [here](https://smith.langchain.com/settings/apikeys).
+- **An OpenAI API key**: Generate this from the [OpenAI dashboard](https://platform.openai.com/account/api-keys).
+
+This quickstart will use [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses). You can adapt this to your LLM provider of choice. If you're using Anthropic, use the [Anthropic wrapper](/langsmith/annotate-code#wrap-the-anthropic-client-python-only) to trace your calls. For other providers, use [the traceable wrapper](/langsmith/annotate-code#use-%40traceable-%2F-traceable).
+
+<Tip>
+If you're building an application with [LangChain](https://python.langchain.com/docs/introduction/) or [LangGraph](https://langchain-ai.github.io/langgraph/), you can enable LangSmith to automatically trace your application by setting environment variables. Get started by reading the guides for tracing with [LangChain](/langsmith/trace-with-langchain) or tracing with [LangGraph](/langsmith/trace-with-langgraph).
+</Tip>
+
+## 1. Create a directory and install dependencies
+
+In your terminal, create a directory for your project and install the dependencies in your environment:
+
+<CodeGroup>
+
+```bash Python
+mkdir ls-observability-quickstart && cd ls-observability-quickstart
+python -m venv .venv && source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -U langsmith openai
+```
+
+```bash TypeScript
+mkdir ls-observability-quickstart-ts && cd ls-observability-quickstart-ts
+npm init -y
+npm install langsmith openai tsx
+```
+
+</CodeGroup>
+
+## 2. Set up environment variables
+
+Set the following environment variables:
+
+- `LANGSMITH_TRACING`
+- `LANGSMITH_API_KEY`
+- `OPENAI_API_KEY` (or your LLM provider's API key)
+- (optional) `LANGSMITH_WORKSPACE_ID`: If your LangSmith API key is linked to multiple workspaces, set this variable to specify which workspace to use.
+
+``` bash
+export LANGSMITH_TRACING=true
+export LANGSMITH_API_KEY="<your-langsmith-api-key>"
+export OPENAI_API_KEY="<your-openai-api-key>"
+export LANGSMITH_WORKSPACE_ID="<your-workspace-id>"
+```
+
+If you're using Anthropic, use the [Anthropic wrapper](/langsmith/trace-anthropic) to trace your calls. For other providers, use [the traceable wrapper](/langsmith/annotate-code#use-%40traceable-%2F-traceable).
+
+<Note>
+<project />
+</Note>
+
+## 3. Define your application
+
+Let's build a simple agent that uses OpenAI's Responses API with function calling. This example shows a weather assistant that can look up weather information. For simplicity, we'll return a static forecast.
+
+<CodeGroup>
+
+```python Python
+# main.py
+import json
+from openai import OpenAI
+
+client = OpenAI()
+
+# Define callable tools
+tools = [
+    {
+        "type": "function",
+        "name": "get_weather",
+        "description": "Get the weather for a city.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "city": {"type": "string", "description": "City name, e.g. Tokyo"}
+            },
+            "required": ["city"],
+        },
+    }
+]
+
+def get_weather(city: str):
+    return {"city": city, "forecast": "72°F and sunny"}
+
+def run_agent(messages: list):
+    """
+    messages: [{"role": "...", "content": "..."}]
+    returns: {"messages": [...]} (full message history)
+    """
+    # Create a running input list we will add to over time
+    input_list = list(messages)
+
+    # Prompt the model with tools defined
+    r1 = client.responses.create(
+        model="gpt-5-mini",
+        tools=tools,
+        input=input_list,
+        instructions="You are a helpful assistant. Use tools when needed.",
+    )
+
+    # Save model output items for subsequent requests
+    input_list += r1.output
+
+    # Execute tool call (minimal, single-tool example)
+    for item in r1.output:
+        if item.type == "function_call" and item.name == "get_weather":
+            args = json.loads(item.arguments)
+            result = get_weather(**args)
+
+            # Provide function call results to the model
+            input_list.append(
+                {
+                    "type": "function_call_output",
+                    "call_id": item.call_id,
+                    "output": json.dumps(result),
+                }
+            )
+            break
+
+    # Second model call (model uses tool result to answer)
+    r2 = client.responses.create(
+        model="gpt-5-mini",
+        tools=tools,
+        input=input_list,
+        instructions="Answer the user using the tool result.",
+    )
+
+    input_list += r2.output
+
+    return {"messages": input_list}
+
+if __name__ == "__main__":
+    result = run_agent(
+        [{"role": "user", "content": "What's the weather in San Francisco?"}]
+    )
+    print(result["messages"])
+```
+
+```typescript TypeScript
+// main.ts
+import { OpenAI } from "openai";
+
+const client = new OpenAI();
+
+// Define callable tools
+const tools = [
+  {
+    type: "function" as const,
+    name: "get_weather",
+    description: "Get the weather for a city.",
+    parameters: {
+      type: "object" as const,
+      properties: {
+        city: { type: "string" as const, description: "City name, e.g. Tokyo" },
+      },
+      required: ["city"],
+    },
+  },
+];
+
+const getWeather = (city: string) => {
+    return { city, forecast: "72°F and sunny" };
+  };
+
+const runAgent = async (messages: any[]) => {
+    // Create a running input list we will add to over time (copy to avoid mutating caller input)
+    let inputList = [...messages];
+
+    // Prompt the model with tools defined
+    const r1 = await client.responses.create({
+      model: "gpt-5-mini",
+      tools,
+      input: inputList,
+      instructions: "You are a helpful assistant. Use tools when needed.",
+    });
+
+    // Save model output items for subsequent requests
+    inputList = inputList.concat(r1.output);
+
+    // Execute tool call (minimal, single-tool example)
+    let toolRan = false;
+    for (const item of r1.output) {
+      if (item.type === "function_call" && item.name === "get_weather") {
+        const args = JSON.parse(item.arguments); // { city: "..." }
+        const result = getWeather(args.city);
+
+        // Provide function call results to the model
+        inputList.push({
+          type: "function_call_output",
+          call_id: item.call_id,
+          output: JSON.stringify(result),
+        });
+
+        toolRan = true;
+        break;
+      }
+    }
+
+    // Second model call (model uses tool result to answer)
+    if (toolRan) {
+      const r2 = await client.responses.create({
+        model: "gpt-5-mini",
+        tools,
+        input: inputList,
+        instructions: "Answer the user using the tool result.",
+      });
+
+      inputList = inputList.concat(r2.output);
+    }
+
+    return { messages: inputList };
+  };
+
+// Run the agent
+runAgent([{ role: "user", content: "What's the weather in San Francisco?" }])
+  .then((result) => console.log(JSON.stringify(result, null, 2)))
+  .catch((error) => console.error(error));
+
+export { runAgent };
+```
+</CodeGroup>
+
+## 4. Add Tracing
+
+Now that we've defined our application, let's add tracing to it with just three changes:
+
+1. **Import LangSmith utilities** - `wrap_openai` and `traceable`.
+2. **Wrap the OpenAI client** - Automatically traces all OpenAI calls.
+3. **Wrap tool functions** - Creates runs for tool execution, can also be used to trace other functions.
+
+<Tip>
+**Tracing Best Practice**:
+- Structure both inputs and outputs with messages as a top-level key, using the shape `{"messages": [...]}`.
+- Log the full message history (not individual messages) so LangSmith can capture the complete conversation flow, including tool calls and intermediate steps. Viewing the full conversation history in LangSmith makes it easier to understand what happened and debug issues.
+
+This format allows LangSmith to render message lists in a structured, readable view. Using the `messages` structure is also required to unlock some features, like [Polly](/langsmith/polly), [LangSmith Fetch](https://github.com/langchain-ai/langsmith-fetch) and [multi-turn evals](/langsmith/online-evaluations#configure-multi-turn-online-evaluators).
+</Tip>
+
+
+<CodeGroup>
+
+```python Python highlight={4,5,8,26,31}
+# main.py
+import json
+from openai import OpenAI
+from langsmith import traceable
+from langsmith.wrappers import wrap_openai
+
+# Traced OpenAI client
+client = wrap_openai(OpenAI())
+
+# Define callable tools
+tools = [
+    {
+        "type": "function",
+        "name": "get_weather",
+        "description": "Get the weather for a city.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "city": {"type": "string", "description": "City name, e.g. Tokyo"}
+            },
+            "required": ["city"],
+        },
+    }
+]
+
+@traceable(name="get_weather", run_type="tool")
+def get_weather(city: str):
+    return {"city": city, "forecast": "72°F and sunny"}
+
+
+@traceable(name="weather_agent")
+def run_agent(messages: list):
+    """
+    messages: [{"role": "...", "content": "..."}]
+    returns: {"messages": [...]} (full message history)
+    """
+    # Create a running input list we will add to over time
+    input_list = list(messages)
+
+    # Prompt the model with tools defined
+    r1 = client.responses.create(
+        model="gpt-5-mini",
+        tools=tools,
+        input=input_list,
+        instructions="You are a helpful assistant. Use tools when needed.",
+    )
+
+    # Save model output items for subsequent requests
+    input_list += r1.output
+
+    # Execute tool call (minimal, single-tool example)
+    for item in r1.output:
+        if item.type == "function_call" and item.name == "get_weather":
+            args = json.loads(item.arguments)
+            result = get_weather(**args)
+
+            # Provide function call results to the model
+            input_list.append(
+                {
+                    "type": "function_call_output",
+                    "call_id": item.call_id,
+                    "output": json.dumps(result),
+                }
+            )
+            break
+
+    # Second model call (model uses tool result to answer)
+    r2 = client.responses.create(
+        model="gpt-5-mini",
+        tools=tools,
+        input=input_list,
+        instructions="Answer the user using the tool result.",
+    )
+
+    input_list += r2.output
+
+    return {"messages": input_list}
+
+if __name__ == "__main__":
+    result = run_agent(
+        [{"role": "user", "content": "What's the weather in San Francisco?"}]
+    )
+    print(result["messages"])
+```
+
+```typescript TypeScript highlight={3,4,7,25,28,31,79}
+// main.ts
+import { OpenAI } from "openai";
+import { wrapOpenAI } from "langsmith/wrappers";
+import { traceable } from "langsmith/traceable";
+
+// Traced OpenAI client
+const client = wrapOpenAI(new OpenAI());
+
+// Define callable tools
+const tools = [
+  {
+    type: "function" as const,
+    name: "get_weather",
+    description: "Get the weather for a city.",
+    parameters: {
+      type: "object" as const,
+      properties: {
+        city: { type: "string" as const, description: "City name, e.g. Tokyo" },
+      },
+      required: ["city"],
+    },
+  },
+];
+
+const getWeather = traceable((city: string) => {
+    return { city, forecast: "72°F and sunny" };
+  },
+  { name: "get_weather", run_type: "tool" }
+);
+
+const runAgent = traceable(async (messages: any[]) => {
+    // Create a running input list we will add to over time (copy to avoid mutating caller input)
+    let inputList = [...messages];
+
+    // Prompt the model with tools defined
+    const r1 = await client.responses.create({
+      model: "gpt-5-mini",
+      tools,
+      input: inputList,
+      instructions: "You are a helpful assistant. Use tools when needed.",
+    });
+
+    // Save model output items for subsequent requests
+    inputList = inputList.concat(r1.output);
+
+    // Execute tool call (minimal, single-tool example)
+    let toolRan = false;
+    for (const item of r1.output) {
+      if (item.type === "function_call" && item.name === "get_weather") {
+        const args = JSON.parse(item.arguments); // { city: "..." }
+        const result = getWeather(args.city);
+
+        // Provide function call results to the model
+        inputList.push({
+          type: "function_call_output",
+          call_id: item.call_id,
+          output: JSON.stringify(result),
+        });
+
+        toolRan = true;
+        break;
+      }
+    }
+
+    // Second model call (model uses tool result to answer)
+    if (toolRan) {
+      const r2 = await client.responses.create({
+        model: "gpt-5-mini",
+        tools,
+        input: inputList,
+        instructions: "Answer the user using the tool result.",
+      });
+
+      inputList = inputList.concat(r2.output);
+    }
+
+    return { messages: inputList };
+  },
+  { name: "weather_agent" }
+);
+
+// Run the agent
+runAgent([{ role: "user", content: "What's the weather in San Francisco?" }])
+  .then((result) => console.log(JSON.stringify(result, null, 2)))
+  .catch((error) => console.error(error));
+
+export { runAgent };
+```
+
+</CodeGroup>
+
+## 5. Run the code
+
+Execute the script:
+
+<CodeGroup>
+
+```bash Python
+python main.py
+```
+
+```bash TypeScript
+npx tsx main.ts
+```
+
+</CodeGroup>
+
+## 6. View the Trace in LangSmith
+
+In the [LangSmith UI](https://smith.langchain.com), navigate to the **default** Tracing Project for the workspace you specified in [Step 2](#2-set-up-environment-variables)). You'll see the agent's trace. It should look like this: https://smith.langchain.com/public/c1ac97f8-a022-4e0f-8380-59cab47f28e5/r.
+
+
+## Next steps
+
+Here are some topics you might want to explore next:
+
+- [Tracing integrations](/langsmith/trace-with-langchain) provide support for various LLM providers and agent frameworks.
+- [Filtering traces](/langsmith/filter-traces-in-application) can help you effectively navigate and analyze data in tracing projects that contain a significant amount of data.
+- [Trace a RAG application](/langsmith/observability-llm-tutorial) is a full tutorial, which adds observability to an application from development through to production.
+- [Sending traces to a specific project](/langsmith/log-traces-to-project) changes the destination project of your traces.
+
+<Callout type="info" icon="bird">
+After logging traces, use **[Polly](/langsmith/polly)** to analyze them and get AI-powered insights into your application's performance.
+</Callout>
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/langsmith/observability-quickstart.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
